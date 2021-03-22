@@ -10,6 +10,7 @@ from sklearn.utils import resample
 import numpy as np
 from torch.utils import *
 import matplotlib.pyplot as plt
+from fairness_metrics import reweighting_weights
 
 
 def get_data(filepath):
@@ -98,12 +99,16 @@ def split_train_test(df, train=0.75):
 def statistics(df, verbose=0):
     stats = {"Male": df[df["gender"] == 1]["income"].value_counts() / len(df[df["gender"] == 1]),
              "Female": df[df["gender"] == 0]["income"].value_counts() / len(df[df["gender"] == 0]),
+             "<50K" : df[df["income"] == 0]["gender"].value_counts() / len(df[df["income"] == 0]),
+             ">50K": df[df["income"] == 1]["gender"].value_counts() / len(df[df["income"] == 1]),
              "Income": df["income"].value_counts()}
 
     if verbose:
         print("-" * 20)
         print("Male \n", stats["Male"])
         print("Female \n", stats["Female"])
+        print("<50K \n", stats["<50K"])
+        print(">50K \n", stats[">50K"])
         print("Income \n", stats["Income"])
 
     return stats
@@ -131,7 +136,7 @@ class Dataset(data.Dataset):
 
 
 def train_test_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_remove=0,
-                       balanced={"train_label_only": True, "test_label_only": False, "downsample": True}):
+                       balanced={"train_label_only": True, "test_label_only": False, "downsample": True}, reweighting=0):
     # Loading the dataset
     df = get_data(filepath)
 
@@ -156,4 +161,6 @@ def train_test_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_re
     train_dataset = Dataset(train_df, label, protect)
     test_dataset = Dataset(test_df, label, protect)
 
-    return train_dataset, test_dataset
+    w_minority_high = reweighting_weights(train_df, label, protect) if reweighting else 1
+
+    return train_dataset, test_dataset, w_minority_high
