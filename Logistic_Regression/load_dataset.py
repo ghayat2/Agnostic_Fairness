@@ -161,6 +161,6 @@ def train_test_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_re
     train_dataset = Dataset(train_df, label, protect)
     test_dataset = Dataset(test_df, label, protect)
 
-    w_minority_high = reweighting_weights(train_df, label, protect) if reweighting else 1
+    w_minority_train = reweighting_weights(train_df, label, protect) if reweighting else (1,1)
 
-    return train_dataset, test_dataset, w_minority_high
+    return train_dataset, test_dataset, w_minority_train

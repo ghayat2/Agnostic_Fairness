@@ -59,10 +59,10 @@ In order to test Case_1 and Case_2, we want the train and test set to have balan
 """
 balanced = {"train_label_only": True, "test_label_only": False, "downsample": True}
 train_dataset, test_dataset, train_w_minority = train_test_dataset(FILE_PATH, LABEL_COL, PROTECT_COL,
-                                                                            is_scaled=True,
-                                                                            num_proxy_to_remove=NUM_PROXIES,
-                                                                            balanced=balanced,
-                                                                            reweighting=REWEIGHT)
+                                                                   is_scaled=True,
+                                                                   num_proxy_to_remove=NUM_PROXIES,
+                                                                   balanced=balanced,
+                                                                   reweighting=REWEIGHT)
 
 device = torch.device("cpu")
 
@@ -79,7 +79,7 @@ for trial in range(NUM_TRIALS):
     optimizer = optim.Adam(predictor.parameters(), lr=LR_RATE)
 
     for epoch in range(NUM_EPOCH):
-        train(predictor, device, train_loader, optimizer, verbose=VERBOSE)
+        train(predictor, device, train_loader, optimizer, verbose=VERBOSE, minority_w=train_w_minority)
 
     ###### Test set
     train_pred_labels, train_loss, train_accuracy = test(predictor, device, train_loader)

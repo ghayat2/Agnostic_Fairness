@@ -56,4 +56,6 @@ def statistical_parity_difference(confusion_matrix_1, confusion_matrix_2):
 
 def reweighting_weights(df, label, protect):
     counts_high = df[df[label] == 1][protect].value_counts()
-    return counts_high[0] / counts_high[1]
+    counts_low = df[df[label] == 0][protect].value_counts()
+    M, F = 1, 0
+    return counts_low[M] / counts_low[F], counts_high[M] / counts_high[F]

@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 
 class Predictor(nn.Module):
@@ -14,7 +15,7 @@ class Predictor(nn.Module):
         return y_logits, y_pred
 
 
-def train(model, device, train_loader, optimizer, verbose=1):
+def train(model, device, train_loader, optimizer, verbose=1, minority_w=(1, 1)):
     model.train()
     sum_num_correct = 0
     sum_loss = 0
@@ -27,8 +28,14 @@ def train(model, device, train_loader, optimizer, verbose=1):
             device, dtype=torch.float)
         optimizer.zero_grad()
         logits, output = model(data)
-        criterion = torch.nn.BCELoss()
-        loss = criterion(output, target.view_as(output))
+
+        weights = torch.tensor(
+            [minority_w[0] if not target[i] and not protect[i] else 1 for i in range(len(data))]).type(torch.float) \
+                  * torch.tensor([minority_w[1] if target[i] and not protect[i] else 1 for i in range(len(data))]).type(
+            torch.float)
+
+        criterion = torch.nn.BCELoss(weight=weights)
+        loss = criterion(output.view_as(target), target)
         pred = (output > 0.5) * 1
         pred = pred.float()
         correct = pred.eq(target.view_as(pred)).sum().item()
