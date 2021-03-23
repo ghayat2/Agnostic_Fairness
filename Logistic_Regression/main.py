@@ -105,7 +105,7 @@ for trial in range(NUM_TRIALS):
     #### Saving checkpoint
     if ID >= 0:
         PATH = (
-                   "Case_2/" if REWEIGHT != 1 else "Case_1/") + f"checkpoints/model_ep_{START_EPOCH + NUM_EPOCH}/Run_{ID}" + \
+                   "Case_2/" if REWEIGHT else "Case_1/") + f"checkpoints/model_ep_{START_EPOCH + NUM_EPOCH}/Run_{ID}" + \
                f"/trial_{trial}"
         LOSS = "BCELoss"
 
@@ -128,7 +128,7 @@ print("fairness diff:", fairness_diffs)
 
 if ID >= 0:
     PATH = (
-               "Case_2/" if REWEIGHT != 1 else "Case_1/") + f"checkpoints/model_ep_{START_EPOCH + NUM_EPOCH}/Run_{ID}/stats.txt"
+               "Case_2/" if REWEIGHT else "Case_1/") + f"checkpoints/model_ep_{START_EPOCH + NUM_EPOCH}/Run_{ID}/stats.txt"
     file = open(PATH, "w")
     file.write(f"Training accuracy: {train_accuracies.mean():3f} += {train_accuracies.std():3f} \n")
     file.write(f"Test accuracy: {test_accuracies.mean():3f} += {test_accuracies.std():3f} \n")
