@@ -119,7 +119,8 @@ class Dataset(data.Dataset):
 
     def __init__(self, df, label_column, protect_column):
         'Initialization'
-        self.features = df.drop([label_column, protect_column], axis=1).values
+        # self.features = df.drop([label_column, protect_column], axis=1).values ## Fairness through unawarness
+        self.features = df.drop([label_column], axis=1).values
         self.label = df[label_column].values
         self.protect = df[protect_column].values
 
