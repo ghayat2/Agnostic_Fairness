@@ -99,7 +99,7 @@ def split_train_test(df, train=0.75):
 def statistics(df, verbose=0):
     stats = {"Male": df[df["gender"] == 1]["income"].value_counts() / len(df[df["gender"] == 1]),
              "Female": df[df["gender"] == 0]["income"].value_counts() / len(df[df["gender"] == 0]),
-             "<50K" : df[df["income"] == 0]["gender"].value_counts() / len(df[df["income"] == 0]),
+             "<50K": df[df["income"] == 0]["gender"].value_counts() / len(df[df["income"] == 0]),
              ">50K": df[df["income"] == 1]["gender"].value_counts() / len(df[df["income"] == 1]),
              "Income": df["income"].value_counts()}
 
@@ -137,7 +137,8 @@ class Dataset(data.Dataset):
 
 
 def train_test_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_remove=0,
-                       balanced={"train_label_only": True, "test_label_only": False, "downsample": True}, reweighting=0):
+                       balanced={"train_label_only": True, "test_label_only": False, "downsample": True},
+                       reweighting=0):
     # Loading the dataset
     df = get_data(filepath)
 
@@ -153,8 +154,10 @@ def train_test_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_re
 
     # Balancing the dataset
     if balanced is not None:
-        train_df = balance_df(df, label, protect, label_only=balanced["train_label_only"], downsample=balanced["downsample"])
-        test_df = balance_df(df, label, protect, label_only=balanced["test_label_only"], downsample=balanced["downsample"])
+        train_df = balance_df(df, label, protect, label_only=balanced["train_label_only"],
+                              downsample=balanced["downsample"])
+        test_df = balance_df(df, label, protect, label_only=balanced["test_label_only"],
+                             downsample=balanced["downsample"])
 
     # Splitting dataset into train, test features
     statistics(train_df, verbose=1)
@@ -162,6 +165,6 @@ def train_test_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_re
     train_dataset = Dataset(train_df, label, protect)
     test_dataset = Dataset(test_df, label, protect)
 
-    w_minority_train = reweighting_weights(train_df, label, protect) if reweighting else (1,1)
+    w_minority_train = reweighting_weights(train_df, label, protect) if reweighting == 1 else (1, 1)
 
     return train_dataset, test_dataset, w_minority_train

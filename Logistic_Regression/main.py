@@ -78,8 +78,8 @@ for trial in range(NUM_TRIALS):
     predictor = Predictor(num_predictor_features).to(device)
     optimizer = optim.Adam(predictor.parameters(), lr=LR_RATE)
 
-    for epoch in range(NUM_EPOCH):
-        train(predictor, device, train_loader, optimizer, verbose=VERBOSE, minority_w=train_w_minority)
+    train_reweight(predictor, device, train_loader, optimizer, NUM_EPOCH, verbose=VERBOSE) if REWEIGHT == 2 else \
+        train(predictor, device, train_loader, optimizer, NUM_EPOCH, verbose=VERBOSE, minority_w=train_w_minority)
 
     ###### Test set
     train_pred_labels, train_loss, train_accuracy = test(predictor, device, train_loader)
@@ -105,8 +105,8 @@ for trial in range(NUM_TRIALS):
     #### Saving checkpoint
     if ID >= 0:
         PATH = (
-                   "Case_2/" if REWEIGHT else "Case_1/") + f"checkpoints/model_ep_{START_EPOCH + NUM_EPOCH}/Run_{ID}" + \
-               f"/trial_{trial}"
+                   "Case_3/" if REWEIGHT == 2 else ("Case_2/" if REWEIGHT else "Case_1/")) + f"checkpoints/" \
+                                                                                             f"model_ep_{START_EPOCH + NUM_EPOCH}/Run_{ID}/trial_{trial}"
         LOSS = "BCELoss"
 
         os.makedirs(PATH, exist_ok=True)
@@ -128,7 +128,8 @@ print("fairness diff:", fairness_diffs)
 
 if ID >= 0:
     PATH = (
-               "Case_2/" if REWEIGHT else "Case_1/") + f"checkpoints/model_ep_{START_EPOCH + NUM_EPOCH}/Run_{ID}/stats.txt"
+               "Case_3/" if REWEIGHT == 2 else ("Case_2/" if REWEIGHT else "Case_1/")) + f"checkpoints/" \
+                                                                                         f"model_ep_{START_EPOCH + NUM_EPOCH}/Run_{ID}/stats.txt"
     file = open(PATH, "w")
     file.write(f"Training accuracy: {train_accuracies.mean():3f} += {train_accuracies.std():3f} \n")
     file.write(f"Test accuracy: {test_accuracies.mean():3f} += {test_accuracies.std():3f} \n")

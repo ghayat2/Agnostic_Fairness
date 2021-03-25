@@ -15,45 +15,107 @@ class Predictor(nn.Module):
         return y_logits, y_pred
 
 
-def train(model, device, train_loader, optimizer, verbose=1, minority_w=(1, 1)):
+def cluster_counts_update(counts, preds, targets, clusters):
+    for pred, target, cluster in zip(preds, targets, clusters):
+        counts[int(target)][int(cluster)][0] += int(pred == target)
+        counts[int(target)][int(cluster)][1] += 1
+    return counts
+
+
+def update_weights(weights, cluster_accs):
+    cst = 1
+    for i, cluster in enumerate(cluster_accs):
+        avg_acc = np.mean(cluster)
+        for j, acc in enumerate(cluster):
+            if avg_acc > acc:
+                weights[i][j] += (avg_acc - acc)*cst
+    return weights
+
+
+def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=(1, 1)):
     model.train()
-    sum_num_correct = 0
-    sum_loss = 0
-    num_batches_since_log = 0
+    for _ in range(epochs):
+        sum_num_correct = 0
+        sum_loss = 0
 
-    batches = enumerate(train_loader)
+        batches = enumerate(train_loader)
 
-    for batch_idx, (data, target, protect) in batches:
-        data, target, protect = data.to(device, dtype=torch.float), target.to(device, dtype=torch.float), protect.to(
-            device, dtype=torch.float)
-        optimizer.zero_grad()
-        logits, output = model(data)
+        for batch_idx, (data, target, protect) in batches:
+            data, target, protect = data.to(device, dtype=torch.float), target.to(device,
+                                                                                  dtype=torch.float), protect.to(
+                device, dtype=torch.float)
+            optimizer.zero_grad()
+            logits, output = model(data)
 
-        weights = torch.tensor(
-            [minority_w[0] if not target[i] and not protect[i] else 1 for i in range(len(data))]).type(torch.float) \
-                  * torch.tensor([minority_w[1] if target[i] and not protect[i] else 1 for i in range(len(data))]).type(
-            torch.float)
+            weights = torch.tensor(
+                [minority_w[0] if not target[i] and not protect[i] else 1 for i in range(len(data))]).type(torch.float) \
+                      * torch.tensor(
+                [minority_w[1] if target[i] and not protect[i] else 1 for i in range(len(data))]).type(
+                torch.float)
 
-        criterion = torch.nn.BCELoss(weight=weights)
-        loss = criterion(output.view_as(target), target)
-        pred = (output > 0.5) * 1
-        pred = pred.float()
-        correct = pred.eq(target.view_as(pred)).sum().item()
-        sum_num_correct += correct
-        sum_loss += loss.item() * train_loader.batch_size
-        num_batches_since_log += 1
-        loss.backward()
-        optimizer.step()
+            criterion = torch.nn.BCELoss(weight=weights)
+            loss = criterion(output.view_as(target), target)
+            pred = (output > 0.5) * 1
+            pred = pred.float()
+            correct = pred.eq(target.view_as(pred)).sum().item()
+            sum_num_correct += correct
+            sum_loss += loss.item() * train_loader.batch_size
+            loss.backward()
+            optimizer.step()
 
-    sum_loss /= len(train_loader.dataset)
-    train_accuracy = sum_num_correct / len(train_loader.dataset)
+        sum_loss /= len(train_loader.dataset)
 
-    if verbose:
-        print('\nTrain set: Average loss: {:.2e}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-            sum_loss, sum_num_correct, len(train_loader.dataset),
-            100. * sum_num_correct / len(train_loader.dataset)))
+        if verbose:
+            print('\nTrain set: Average loss: {:.2e}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+                sum_loss, sum_num_correct, len(train_loader.dataset),
+                100. * sum_num_correct / len(train_loader.dataset)))
 
-    return sum_loss, train_accuracy
+    return 1
+
+
+def train_reweight(model, device, train_loader, optimizer, epochs, verbose=1, num_clusters=2, num_labels=2):
+    model.train()
+    cluster_weights = [[1 for _ in range(num_clusters)] for _ in range(num_labels)]
+
+    for _ in range(epochs):
+        sum_num_correct = 0
+        sum_loss = 0
+
+        batches = enumerate(train_loader)
+        cluster_counts = [[[0, 0] for _ in range(num_clusters)] for _ in range(num_labels)]
+
+        for batch_idx, (data, target, cluster) in batches:
+            data, target, protect = data.to(device, dtype=torch.float), target.to(device, dtype=torch.float), \
+                                    cluster.to(device, dtype=torch.float)
+            optimizer.zero_grad()
+            logits, output = model(data)
+
+            weights = torch.tensor([cluster_weights[int(t)][int(c)] for c, t in zip(cluster, target)]).type(torch.float)
+            criterion = torch.nn.BCELoss(weight=weights)
+            loss = criterion(output.view_as(target), target)
+            pred = (output > 0.5) * 1
+            pred = pred.float()
+
+            correct = pred.eq(target.view_as(pred)).sum().item()
+            cluster_counts = cluster_counts_update(cluster_counts, pred, target, cluster)
+
+            sum_num_correct += correct
+            sum_loss += loss.item() * train_loader.batch_size
+            loss.backward()
+            optimizer.step()
+
+        sum_loss /= len(train_loader.dataset)
+        clusters_accs = [[l[0] / l[1] for l in cluster] for cluster in cluster_counts]
+        cluster_weights = update_weights(cluster_weights, clusters_accs)
+
+        if verbose:
+            print('\nTrain set: Average loss: {:.2e}, Accuracy: {}/{} ({:.0f}%), Cluster accuracies: {}, weights: {}\n'.format(
+                sum_loss, sum_num_correct, len(train_loader.dataset),
+                100. * sum_num_correct / len(train_loader.dataset),
+                str(clusters_accs),
+                str(cluster_weights)))
+
+    return 1
 
 
 def test(model, device, test_loader):
@@ -63,9 +125,8 @@ def test(model, device, test_loader):
     test_pred = torch.zeros(0, 1).to(device)
     with torch.no_grad():
         for data, target, protect in test_loader:
-            data, target, protect = data.to(device, dtype=torch.float), target.to(device,
-                                                                                  dtype=torch.float), protect.to(device,
-                                                                                                                 dtype=torch.float)
+            data, target, protect = data.to(device, dtype=torch.float), target.to(device, dtype=torch.float), \
+                                    protect.to(device, dtype=torch.float)
             logit, output = model(data)
             criterion = torch.nn.BCELoss()
             loss = criterion(output, target.view_as(output))
