@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+from torch import optim
 
 
 class Predictor(nn.Module):
@@ -28,8 +29,24 @@ def update_weights(weights, cluster_accs):
         avg_acc = np.mean(cluster)
         for j, acc in enumerate(cluster):
             if avg_acc > acc:
-                weights[i][j] += (avg_acc - acc)*cst
+                weights[i][j] += (avg_acc - acc) * cst
     return weights
+
+
+def my_BCELoss(preds, labels, weights):
+    return torch.mean(-weights * (labels * torch.log(preds) + (1 - labels) * torch.log(1 - preds)))
+
+
+def get_cluster_grads(grads, cluster, target, num_clusters=2, num_labels=2):
+    cluster_grads = [[[] for _ in range(num_clusters)] for _ in range(num_labels)]
+    for i, (c, t) in enumerate(zip(cluster, target)):
+        cluster_grads[int(t)][int(c)].append(grads[i])
+    return [[np.average(l) for l in clusters] for clusters in cluster_grads]
+
+
+def gradient_ascent(weights, grads, lr):
+    return [[w + lr * g for w, g in zip(cluster_weights, cluster_grads)] for cluster_weights, cluster_grads in
+            zip(weights, grads)]
 
 
 def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=(1, 1)):
@@ -73,11 +90,13 @@ def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=
     return 1
 
 
-def train_reweight(model, device, train_loader, optimizer, epochs, verbose=1, num_clusters=2, num_labels=2):
+def train_reweight(model, device, train_loader, optimizer, epochs, verbose=1, num_clusters=2, num_labels=2,
+                   cluster_lr=10):
     model.train()
-    cluster_weights = [[1 for _ in range(num_clusters)] for _ in range(num_labels)]
+    cluster_weights = [[1.0 for _ in range(num_clusters)] for _ in range(num_labels)]
+    # optimizer_clusters = optim.Adam(cluster_weights, lr=0.01)
 
-    for _ in range(epochs):
+    for epoch in range(epochs):
         sum_num_correct = 0
         sum_loss = 0
 
@@ -90,30 +109,36 @@ def train_reweight(model, device, train_loader, optimizer, epochs, verbose=1, nu
             optimizer.zero_grad()
             logits, output = model(data)
 
-            weights = torch.tensor([cluster_weights[int(t)][int(c)] for c, t in zip(cluster, target)]).type(torch.float)
-            criterion = torch.nn.BCELoss(weight=weights)
-            loss = criterion(output.view_as(target), target)
+            weights = torch.tensor([cluster_weights[int(t)][int(c)] for c, t in zip(cluster, target)],
+                                   requires_grad=True).type(torch.float)
+
+            loss = my_BCELoss(output.view_as(target), target, weights)
             pred = (output > 0.5) * 1
             pred = pred.float()
 
             correct = pred.eq(target.view_as(pred)).sum().item()
-            cluster_counts = cluster_counts_update(cluster_counts, pred, target, cluster)
 
             sum_num_correct += correct
             sum_loss += loss.item() * train_loader.batch_size
             loss.backward()
             optimizer.step()
 
+            cluster_counts = cluster_counts_update(cluster_counts, pred, target, cluster)
+            cluster_grads = get_cluster_grads(weights.grad.numpy(), cluster, target, num_clusters, num_labels)
+            cluster_weights = gradient_ascent(cluster_weights, cluster_grads, cluster_lr)
+
         sum_loss /= len(train_loader.dataset)
         clusters_accs = [[l[0] / l[1] for l in cluster] for cluster in cluster_counts]
-        cluster_weights = update_weights(cluster_weights, clusters_accs)
 
         if verbose:
-            print('\nTrain set: Average loss: {:.2e}, Accuracy: {}/{} ({:.0f}%), Cluster accuracies: {}, weights: {}\n'.format(
-                sum_loss, sum_num_correct, len(train_loader.dataset),
-                100. * sum_num_correct / len(train_loader.dataset),
-                str(clusters_accs),
-                str(cluster_weights)))
+            print(
+                '\nEpoch: {} - Train set: Average loss: {:.2e}, Accuracy: {}/{} ({:.0f}%), Cluster accuracies: {}, '
+                'weights: {}\n'.format(
+                    epoch,
+                    sum_loss, sum_num_correct, len(train_loader.dataset),
+                    100. * sum_num_correct / len(train_loader.dataset),
+                    str(clusters_accs),
+                    str(cluster_weights)))
 
     return 1
 

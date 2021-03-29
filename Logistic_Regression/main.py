@@ -8,7 +8,7 @@ from logistic_regression_model import *
 try:
     opts, args = getopt.getopt(sys.argv[1:], "h",
                                ["label_column=", "protect_column=", "reweight=", "start_epoch=", "num_epochs=", "id=",
-                                "num_trials=", "num_proxies=", "verbose="])
+                                "num_trials=", "num_proxies=", "verbose=", "lr=", "cluster_lr", "batch_size="])
 except getopt.GetoptError:
     print("Wrong format ...")
     print(sys.argv)
@@ -16,16 +16,16 @@ except getopt.GetoptError:
 
 # INPUT PARAMS
 data_dir = '../Datasets/doctor_nurse/train_test_split'
-LABEL_COL, PROTECT_COL, REWEIGHT, START_EPOCH, NUM_EPOCH, ID, NUM_TRIALS, NUM_PROXIES, FILE_PATH, VERBOSE = \
-    "income", "gender", 0, 0, 40, 1, False, 0, "../Datasets/adult_dataset/processed_adult.csv", 1
-# MODEL PARAMS
-LR_RATE, BATCH_SIZE = 0.001, 1000
+LABEL_COL, PROTECT_COL, REWEIGHT, START_EPOCH, NUM_EPOCH, ID, NUM_TRIALS, NUM_PROXIES, FILE_PATH, VERBOSE, \
+LR_RATE, CLUSTER_LR, BATCH_SIZE = "income", "gender", 0, 0, 40, 1, False, 0, \
+                                  "../Datasets/adult_dataset/processed_adult.csv", 1, 0.001, 10, 1000
 
 for opt, arg in opts:
     if opt == '-h':
         print("main.py --reweight=<reweight> --bias=<bias> --val_mode=<val_mode> --start_epoch=<start_epoch>"
               "--num_epoch=<num_epoch> --num_clusters=<num_clusters> --visdom=<visdom> --id=<id> "
-              "--num_trials=<num_trials> --file_path=<file_path> --verbose=<verbose>")
+              "--num_trials=<num_trials> --file_path=<file_path> --verbose=<verbose> --lr=<lr> "
+              "--cluster_lr=<cluster_lr> --batch_size=<batch_size>")
         sys.exit()
     if opt == '--label_column':
         LABEL_COL = int(arg)
@@ -47,11 +47,17 @@ for opt, arg in opts:
         FILE_PATH = int(arg)
     if opt == '--verbose':
         VERBOSE = int(arg)
+    if opt == '--lr':
+        LR_RATE = float(arg)
+    if opt == '--cluster_lr':
+        CLUSTER_LR = float(arg)
+    if opt == '--batch_size':
+        BATCH_SIZE = int(arg)
 
 print(
     f"RUNNING SCRIPT WITH ARGUMENTS : -label_column={LABEL_COL} -protect_column={PROTECT_COL} -reweight={REWEIGHT}"
     f" -start_epoch={START_EPOCH} -num_epoch={NUM_EPOCH} -id={ID} -num_trials={NUM_TRIALS} -num_proxies={NUM_PROXIES}"
-    f"-file_path={FILE_PATH} -verbose={VERBOSE}")
+    f"-file_path={FILE_PATH} -verbose={VERBOSE} -lr={LR_RATE} -cluster_lr={CLUSTER_LR} -batch_size={BATCH_SIZE}")
 
 """
 In order to test Case_1 and Case_2, we want the train and test set to have balanced labels, but we want the test set
