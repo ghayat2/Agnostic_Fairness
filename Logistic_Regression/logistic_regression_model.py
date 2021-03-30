@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-from torch import optim
+import pandas as pd
 
 
 class Predictor(nn.Module):
@@ -51,7 +51,9 @@ def gradient_ascent(weights, grads, lr):
 
 def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=(1, 1)):
     model.train()
-    for _ in range(epochs):
+    history = pd.DataFrame([], columns=["loss", "accuracy"], index=range(epochs))
+
+    for epoch in range(epochs):
         sum_num_correct = 0
         sum_loss = 0
 
@@ -81,20 +83,27 @@ def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=
             optimizer.step()
 
         sum_loss /= len(train_loader.dataset)
+        acc = 100. * sum_num_correct / len(train_loader.dataset)
+
+        history.iloc[epoch] = [sum_loss, acc]
 
         if verbose:
             print('\nTrain set: Average loss: {:.2e}, Accuracy: {}/{} ({:.0f}%)\n'.format(
                 sum_loss, sum_num_correct, len(train_loader.dataset),
-                100. * sum_num_correct / len(train_loader.dataset)))
+                acc))
 
-    return 1
+    return history
 
 
 def train_reweight(model, device, train_loader, optimizer, epochs, verbose=1, num_clusters=2, num_labels=2,
                    cluster_lr=10):
     model.train()
     cluster_weights = [[1.0 for _ in range(num_clusters)] for _ in range(num_labels)]
-    # optimizer_clusters = optim.Adam(cluster_weights, lr=0.01)
+    history = pd.DataFrame([], columns=["loss", "accuracy"] +
+                                       [f"cluster_acc_{t}{s}" for s in range(num_clusters) for t in range(num_labels)] +
+                                       [f"cluster_weight_{t}{s}" for s in range(num_clusters) for t in
+                                        range(num_labels)],
+                           index=range(epochs))
 
     for epoch in range(epochs):
         sum_num_correct = 0
@@ -125,10 +134,15 @@ def train_reweight(model, device, train_loader, optimizer, epochs, verbose=1, nu
 
             cluster_counts = cluster_counts_update(cluster_counts, pred, target, cluster)
             cluster_grads = get_cluster_grads(weights.grad.numpy(), cluster, target, num_clusters, num_labels)
-            cluster_weights = gradient_ascent(cluster_weights, cluster_grads, cluster_lr)
+            cluster_weights = gradient_ascent(cluster_weights, cluster_grads, cluster_lr) # weights update by gradient ascent
 
         sum_loss /= len(train_loader.dataset)
         clusters_accs = [[l[0] / l[1] for l in cluster] for cluster in cluster_counts]
+        acc = 100. * sum_num_correct / len(train_loader.dataset)
+        # cluster_weights = update_weights(cluster_weights, clusters_accs) # weights update by customized heuristic
+
+        history.iloc[epoch] = [sum_loss, acc] + list(np.array(clusters_accs).reshape((-1))) + list(
+            np.array(cluster_weights).reshape((-1)))
 
         if verbose:
             print(
@@ -136,11 +150,11 @@ def train_reweight(model, device, train_loader, optimizer, epochs, verbose=1, nu
                 'weights: {}\n'.format(
                     epoch,
                     sum_loss, sum_num_correct, len(train_loader.dataset),
-                    100. * sum_num_correct / len(train_loader.dataset),
+                    acc,
                     str(clusters_accs),
                     str(cluster_weights)))
 
-    return 1
+    return history
 
 
 def test(model, device, test_loader):

@@ -1,0 +1,10 @@
+Training accuracy: 0.791176 += 0.000000 
+Test accuracy: 0.798682 += 0.000000 
+Fairness accuracy: 
+ [[0.762 0.859]
+ [0.765 0.809]] 
+ += 
+ [[0. 0.]
+ [0. 0.]]
+ Fairness diffs: 
+[array([0.097, 0.044])]

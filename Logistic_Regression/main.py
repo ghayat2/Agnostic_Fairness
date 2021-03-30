@@ -84,8 +84,10 @@ for trial in range(NUM_TRIALS):
     predictor = Predictor(num_predictor_features).to(device)
     optimizer = optim.Adam(predictor.parameters(), lr=LR_RATE)
 
-    train_reweight(predictor, device, train_loader, optimizer, NUM_EPOCH, verbose=VERBOSE) if REWEIGHT == 2 else \
+    train_history = train_reweight(predictor, device, train_loader, optimizer, NUM_EPOCH, verbose=VERBOSE) if REWEIGHT == 2 else \
         train(predictor, device, train_loader, optimizer, NUM_EPOCH, verbose=VERBOSE, minority_w=train_w_minority)
+
+    print(train_history[[c for c in train_history.columns if "weight" in c or "cluster_acc" in c]])
 
     ###### Test set
     train_pred_labels, train_loss, train_accuracy = test(predictor, device, train_loader)
@@ -122,6 +124,7 @@ for trial in range(NUM_TRIALS):
             'optimizer_state_dict': optimizer.state_dict(),
             'loss': LOSS,
         }, PATH + "/checkpoint.pt ")
+        train_history.to_pickle(PATH + "/train_history.pkl")
 
 train_accuracies = np.array(train_accuracies)
 test_accuracies = np.array(test_accuracies)
