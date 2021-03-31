@@ -6,6 +6,9 @@ import pandas as pd
 
 
 class Predictor(nn.Module):
+    """
+    Logistic Regression implemented with pyTorch
+    """
     def __init__(self, num_predictor_features):
         super(Predictor, self).__init__()
         self.linear = torch.nn.Linear(num_predictor_features, 1)
@@ -17,13 +20,29 @@ class Predictor(nn.Module):
 
 
 def cluster_counts_update(counts, preds, targets, clusters):
+    """
+    Counts the number of correct predictions per cluster
+    :param counts: Array of shape (num_classes, num_clusters), where each element is a list [a,b] where
+                    a="Cluster samples correctly predicted" and b="Total number of samples in cluster"
+    :param preds: Model Predictions
+    :param targets: True labels
+    :param clusters: Clusters (Subgroups)
+    :return: Updated counts
+    """
     for pred, target, cluster in zip(preds, targets, clusters):
         counts[int(target)][int(cluster)][0] += int(pred == target)
         counts[int(target)][int(cluster)][1] += 1
     return counts
 
 
+@ DeprecationWarning
 def update_weights(weights, cluster_accs):
+    """
+    Update the cluster weights for the next epoch
+    :param weights: The weights that need to be updated
+    :param cluster_accs: The accuracy of each cluster
+    :return:
+    """
     cst = 1
     for i, cluster in enumerate(cluster_accs):
         avg_acc = np.mean(cluster)
@@ -34,19 +53,49 @@ def update_weights(weights, cluster_accs):
 
 
 def my_BCELoss(preds, labels, weights):
+    """
+    Weighted Binary Cross Entropy Loss
+    """
     return torch.mean(-weights * (labels * torch.log(preds) + (1 - labels) * torch.log(1 - preds)))
 
 
-def get_cluster_grads(grads, cluster, target, num_clusters=2, num_labels=2):
-    cluster_grads = [[[] for _ in range(num_clusters)] for _ in range(num_labels)]
+def get_cluster_grads(cluster_grads, new_grads, cluster, target):
+    """
+    Updates the cluster gradients with computed gradients of new batch
+    :param cluster_grads: Array of shape [num_classes, num_clusters] where each element is a list of all gradients
+                        from the cluster weight computed so far
+    :param new_grads: The new cluster weight gradients from the new batch
+    :param cluster: the cluster id of samples from the new batch
+    :param target: the target from the samples of the new batch
+    :return: the updated cluster gradients
+    """
     for i, (c, t) in enumerate(zip(cluster, target)):
-        cluster_grads[int(t)][int(c)].append(grads[i])
-    return [[np.average(l) for l in clusters] for clusters in cluster_grads]
+        cluster_grads[int(t)][int(c)].append(new_grads[i])
+    return cluster_grads
 
 
-def gradient_ascent(weights, grads, lr):
-    return [[w + lr * g for w, g in zip(cluster_weights, cluster_grads)] for cluster_weights, cluster_grads in
-            zip(weights, grads)]
+def gradient_updates(weights, grads, accs, lr):
+    """
+     Updates the cluster weights for the next epoch - the direction of the update depends on the cluster accuracy
+    :param weights: The current weights of the clusters
+    :param grads: The average gradient of the cluster weights from the epoch
+    :param accs: The cluster accuracy from the epoch
+    :param lr: The rate of the update
+    :return: The updated cluster weights
+    """
+    return [[w + lr * g if a < np.average(cluster_accs) else w - lr * g for w, g, a
+            in zip(cluster_weights, cluster_grads, cluster_accs)] for cluster_weights, cluster_grads, cluster_accs
+            in zip(weights, grads, accs)]
+
+
+def normalize(cluster_weights):
+    """
+    Normalizes the weights with respect the smallest one.
+    :param cluster_weights: The weights of the clusters
+    :return: The normalized weights
+    """
+    min_list = [min(l) for l in cluster_weights]
+    return [[el / min_list[i] for el in l] for i, l in enumerate(cluster_weights)]
 
 
 def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=(1, 1)):
@@ -101,8 +150,8 @@ def train_reweight(model, device, train_loader, optimizer, epochs, verbose=1, nu
     cluster_weights = [[1.0 for _ in range(num_clusters)] for _ in range(num_labels)]
     history = pd.DataFrame([], columns=["loss", "accuracy"] +
                                        [f"cluster_acc_{t}{s}" for s in range(num_clusters) for t in range(num_labels)] +
-                                       [f"cluster_weight_{t}{s}" for s in range(num_clusters) for t in
-                                        range(num_labels)],
+                                       [f"cluster_weight_{t}{s}" for s in range(num_clusters) for t in range(num_labels)] +
+                                       [f"cluster_grad_{t}{s}" for s in range(num_clusters) for t in range(num_labels)],
                            index=range(epochs))
 
     for epoch in range(epochs):
@@ -111,6 +160,7 @@ def train_reweight(model, device, train_loader, optimizer, epochs, verbose=1, nu
 
         batches = enumerate(train_loader)
         cluster_counts = [[[0, 0] for _ in range(num_clusters)] for _ in range(num_labels)]
+        cluster_grads = [[[] for _ in range(num_clusters)] for _ in range(num_labels)]
 
         for batch_idx, (data, target, cluster) in batches:
             data, target, protect = data.to(device, dtype=torch.float), target.to(device, dtype=torch.float), \
@@ -133,16 +183,19 @@ def train_reweight(model, device, train_loader, optimizer, epochs, verbose=1, nu
             optimizer.step()
 
             cluster_counts = cluster_counts_update(cluster_counts, pred, target, cluster)
-            cluster_grads = get_cluster_grads(weights.grad.numpy(), cluster, target, num_clusters, num_labels)
-            cluster_weights = gradient_ascent(cluster_weights, cluster_grads, cluster_lr) # weights update by gradient ascent
+            cluster_grads = get_cluster_grads(cluster_grads, weights.grad.numpy(), cluster, target)
 
         sum_loss /= len(train_loader.dataset)
         clusters_accs = [[l[0] / l[1] for l in cluster] for cluster in cluster_counts]
+        cluster_grads = [[np.average(l) for l in clusters] for clusters in cluster_grads]
+        cluster_weights = gradient_updates(cluster_weights, cluster_grads, clusters_accs, cluster_lr)
+        # cluster_weights = normalize(cluster_weights)
+
         acc = 100. * sum_num_correct / len(train_loader.dataset)
         # cluster_weights = update_weights(cluster_weights, clusters_accs) # weights update by customized heuristic
 
         history.iloc[epoch] = [sum_loss, acc] + list(np.array(clusters_accs).reshape((-1))) + list(
-            np.array(cluster_weights).reshape((-1)))
+            np.array(cluster_weights).reshape((-1))) + list(np.array(cluster_grads).reshape((-1)))
 
         if verbose:
             print(

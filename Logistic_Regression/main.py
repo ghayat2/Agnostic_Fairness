@@ -8,7 +8,7 @@ from logistic_regression_model import *
 try:
     opts, args = getopt.getopt(sys.argv[1:], "h",
                                ["label_column=", "protect_column=", "reweight=", "start_epoch=", "num_epochs=", "id=",
-                                "num_trials=", "num_proxies=", "verbose=", "lr=", "cluster_lr", "batch_size="])
+                                "num_trials=", "num_proxies=", "verbose=", "lr=", "cluster_lr=", "batch_size="])
 except getopt.GetoptError:
     print("Wrong format ...")
     print(sys.argv)
@@ -87,7 +87,7 @@ for trial in range(NUM_TRIALS):
     train_history = train_reweight(predictor, device, train_loader, optimizer, NUM_EPOCH, verbose=VERBOSE) if REWEIGHT == 2 else \
         train(predictor, device, train_loader, optimizer, NUM_EPOCH, verbose=VERBOSE, minority_w=train_w_minority)
 
-    print(train_history[[c for c in train_history.columns if "weight" in c or "cluster_acc" in c]])
+    # print(train_history[[c for c in train_history.columns if "cluster" in c]])
 
     ###### Test set
     train_pred_labels, train_loss, train_accuracy = test(predictor, device, train_loader)
