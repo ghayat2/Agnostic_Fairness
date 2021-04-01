@@ -74,7 +74,7 @@ def get_cluster_grads(cluster_grads, new_grads, cluster, target):
     return cluster_grads
 
 
-def gradient_updates(weights, grads, accs, lr):
+def  gradient_updates(weights, grads, accs, lr):
     """
      Updates the cluster weights for the next epoch - the direction of the update depends on the cluster accuracy
     :param weights: The current weights of the clusters
@@ -88,14 +88,18 @@ def gradient_updates(weights, grads, accs, lr):
             in zip(weights, grads, accs)]
 
 
-def normalize(cluster_weights):
+def normalize(cluster_old_weights, cluster_new_weights, cluster_sizes):
     """
-    Normalizes the weights with respect the smallest one.
-    :param cluster_weights: The weights of the clusters
+    Normalizes the new weights with respect to the size of cluster.
+    :param cluster_old_weights: The old weights of the clusters
+    :param cluster_new_weights: The new weights of the clusters
+    :param cluster_sizes: the size of the clusters
     :return: The normalized weights
     """
-    min_list = [min(l) for l in cluster_weights]
-    return [[el / min_list[i] for el in l] for i, l in enumerate(cluster_weights)]
+    cluster_ratios = [[s/np.sum(sizes) for s in sizes] for sizes in cluster_sizes]
+    return [[np.sum(np.array(old_weights)*np.array(sizes))*new_w/np.sum(np.array(new_weights)*np.array(sizes))
+             for new_w in new_weights] for old_weights, new_weights, sizes
+            in zip(cluster_old_weights, cluster_new_weights, cluster_ratios)]
 
 
 def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=(1, 1)):
@@ -116,7 +120,7 @@ def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=
             logits, output = model(data)
 
             weights = torch.tensor(
-                [minority_w[0] if not target[i] and not protect[i] else 1 for i in range(len(data))]).type(torch.float) \
+                [minority_w[0] if not target[i] and not protect[i] else 1 for i in range(len(data))]).type(torch.float)\
                       * torch.tensor(
                 [minority_w[1] if target[i] and not protect[i] else 1 for i in range(len(data))]).type(
                 torch.float)
@@ -147,7 +151,8 @@ def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=
 def train_reweight(model, device, train_loader, optimizer, epochs, verbose=1, num_clusters=2, num_labels=2,
                    cluster_lr=10):
     model.train()
-    cluster_weights = [[1.0 for _ in range(num_clusters)] for _ in range(num_labels)]
+    # cluster_weights = [[1.0 for _ in range(num_clusters)] for _ in range(num_labels)]
+    cluster_weights = [[0.231358, 1.46294], [1.00915, 0.998399]]
     history = pd.DataFrame([], columns=["loss", "accuracy"] +
                                        [f"cluster_acc_{t}{s}" for s in range(num_clusters) for t in range(num_labels)] +
                                        [f"cluster_weight_{t}{s}" for s in range(num_clusters) for t in range(num_labels)] +
@@ -188,8 +193,9 @@ def train_reweight(model, device, train_loader, optimizer, epochs, verbose=1, nu
         sum_loss /= len(train_loader.dataset)
         clusters_accs = [[l[0] / l[1] for l in cluster] for cluster in cluster_counts]
         cluster_grads = [[np.average(l) for l in clusters] for clusters in cluster_grads]
-        cluster_weights = gradient_updates(cluster_weights, cluster_grads, clusters_accs, cluster_lr)
-        # cluster_weights = normalize(cluster_weights)
+        cluster_new_weights = gradient_updates(cluster_weights, cluster_grads, clusters_accs, cluster_lr)
+        cluster_weights = normalize(cluster_weights, cluster_new_weights,
+                                    [[total for correct, total in counts] for counts in cluster_counts])
 
         acc = 100. * sum_num_correct / len(train_loader.dataset)
         # cluster_weights = update_weights(cluster_weights, clusters_accs) # weights update by customized heuristic
