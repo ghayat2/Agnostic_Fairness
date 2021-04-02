@@ -151,8 +151,8 @@ def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=
 def train_reweight(model, device, train_loader, optimizer, epochs, verbose=1, num_clusters=2, num_labels=2,
                    cluster_lr=10):
     model.train()
-    # cluster_weights = [[1.0 for _ in range(num_clusters)] for _ in range(num_labels)]
-    cluster_weights = [[0.231358, 1.46294], [1.00915, 0.998399]]
+    cluster_weights = [[1.0 for _ in range(num_clusters)] for _ in range(num_labels)]
+    # cluster_weights = [[-0.0762689, 1.64822], [-0.22587, 1.21449]]
     history = pd.DataFrame([], columns=["loss", "accuracy"] +
                                        [f"cluster_acc_{t}{s}" for s in range(num_clusters) for t in range(num_labels)] +
                                        [f"cluster_weight_{t}{s}" for s in range(num_clusters) for t in range(num_labels)] +
@@ -195,7 +195,7 @@ def train_reweight(model, device, train_loader, optimizer, epochs, verbose=1, nu
         cluster_grads = [[np.average(l) for l in clusters] for clusters in cluster_grads]
         cluster_new_weights = gradient_updates(cluster_weights, cluster_grads, clusters_accs, cluster_lr)
         cluster_weights = normalize(cluster_weights, cluster_new_weights,
-                                    [[total for correct, total in counts] for counts in cluster_counts])
+                                   [[total for correct, total in counts] for counts in cluster_counts])
 
         acc = 100. * sum_num_correct / len(train_loader.dataset)
         # cluster_weights = update_weights(cluster_weights, clusters_accs) # weights update by customized heuristic
