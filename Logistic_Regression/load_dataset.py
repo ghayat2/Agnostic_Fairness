@@ -11,6 +11,7 @@ import numpy as np
 from torch.utils import *
 import matplotlib.pyplot as plt
 from fairness_metrics import reweighting_weights
+import itertools
 
 
 def get_data(filepath):
@@ -56,7 +57,25 @@ def balance_df_label(df, label, downsample=True):
     return df_label_balanced
 
 
-def balance_df(df, label, protect, label_only=False, downsample=True):
+def balance_df(df, label_col, protected_cols, label_only=False, downsample=True):
+    if label_only:
+        df_balanced_label = balance_df_label(df, label_col, downsample=downsample)
+    else:
+        subgroups = pd.DataFrame([])
+        for label in df[label_col].value_counts().index:
+            df_filtered = df[df[label_col] == label]
+            min_subgroup = df_filtered.groupby(protected_cols).size().min()
+            subgroups = pd.concat(
+                [subgroups, df_filtered.groupby(protected_cols).apply(lambda subgroup: resample(subgroup, replace=False,
+                                                                                                n_samples=min_subgroup,
+                                                                                                random_state=1)).reset_index(
+                    drop=True)])
+        df_balanced_label = balance_df_label(subgroups, label_col, downsample=True)
+    return df_balanced_label
+
+
+@DeprecationWarning
+def balance_df_(df, label, protect, label_only=False, downsample=True):
     if label_only:
         df_balanced_label = balance_df_label(df, label, downsample=downsample)
     else:
@@ -96,7 +115,18 @@ def split_train_test(df, train=0.75):
     return df.loc[i_train], df.loc[i_test]
 
 
-def statistics(df, verbose=0):
+def statistics(df, label_col, protected_cols, verbose=0):
+    stats = {}
+    for label in df[label_col].value_counts().index:
+        stats[label] = df[df[label_col] == label].groupby(protected_cols).apply(
+            lambda subgroup: len(subgroup) / len(df[df[label_col] == label]))
+    if verbose:
+        print(stats)
+    return stats
+
+
+@DeprecationWarning
+def statistics_(df, label_col, protected_cols, verbose=0):
     stats = {"Male": df[df["gender"] == 1]["income"].value_counts() / len(df[df["gender"] == 1]),
              "Female": df[df["gender"] == 0]["income"].value_counts() / len(df[df["gender"] == 0]),
              "<50K": df[df["income"] == 0]["gender"].value_counts() / len(df[df["income"] == 0]),
@@ -117,12 +147,14 @@ def statistics(df, verbose=0):
 class Dataset(data.Dataset):
     'Characterizes a dataset for PyTorch'
 
-    def __init__(self, df, label_column, protect_column):
+    def __init__(self, df, label_column, protect_columns):
         'Initialization'
         # self.features = df.drop([label_column, protect_column], axis=1).values ## Fairness through unawarness
         self.features = df.drop([label_column], axis=1).values
         self.label = df[label_column].values
-        self.protect = df[protect_column].values
+        self.mapping = {element: i for i, element in enumerate(
+            itertools.product(*[list(range(len(df[col].unique()))) for col in protect_columns]))}
+        self.protect = np.array(list(map(lambda a: self.mapping[tuple(a)], list(df[protect_columns].values))))
 
     def __len__(self):
         'Denotes the total number of samples'
@@ -160,8 +192,10 @@ def train_test_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_re
                              downsample=balanced["downsample"])
 
     # Splitting dataset into train, test features
-    statistics(train_df, verbose=1)
-    statistics(test_df, verbose=1)
+    print("Statistics")
+    statistics(train_df, label, protect, verbose=1)
+    statistics(test_df, label, protect, verbose=1)
+
     train_dataset = Dataset(train_df, label, protect)
     test_dataset = Dataset(test_df, label, protect)
 

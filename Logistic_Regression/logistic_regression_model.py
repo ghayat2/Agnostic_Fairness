@@ -9,6 +9,7 @@ class Predictor(nn.Module):
     """
     Logistic Regression implemented with pyTorch
     """
+
     def __init__(self, num_predictor_features):
         super(Predictor, self).__init__()
         self.linear = torch.nn.Linear(num_predictor_features, 1)
@@ -35,7 +36,7 @@ def cluster_counts_update(counts, preds, targets, clusters):
     return counts
 
 
-@ DeprecationWarning
+@DeprecationWarning
 def update_weights(weights, cluster_accs):
     """
     Update the cluster weights for the next epoch
@@ -74,7 +75,7 @@ def get_cluster_grads(cluster_grads, new_grads, cluster, target):
     return cluster_grads
 
 
-def  gradient_updates(weights, grads, accs, lr):
+def gradient_updates(weights, grads, accs, lr):
     """
      Updates the cluster weights for the next epoch - the direction of the update depends on the cluster accuracy
     :param weights: The current weights of the clusters
@@ -84,7 +85,7 @@ def  gradient_updates(weights, grads, accs, lr):
     :return: The updated cluster weights
     """
     return [[w + lr * g if a < np.average(cluster_accs) else w - lr * g for w, g, a
-            in zip(cluster_weights, cluster_grads, cluster_accs)] for cluster_weights, cluster_grads, cluster_accs
+             in zip(cluster_weights, cluster_grads, cluster_accs)] for cluster_weights, cluster_grads, cluster_accs
             in zip(weights, grads, accs)]
 
 
@@ -96,13 +97,13 @@ def normalize(cluster_old_weights, cluster_new_weights, cluster_sizes):
     :param cluster_sizes: the size of the clusters
     :return: The normalized weights
     """
-    cluster_ratios = [[s/np.sum(sizes) for s in sizes] for sizes in cluster_sizes]
-    return [[np.sum(np.array(old_weights)*np.array(sizes))*new_w/np.sum(np.array(new_weights)*np.array(sizes))
+    cluster_ratios = [[s / np.sum(sizes) for s in sizes] for sizes in cluster_sizes]
+    return [[np.sum(np.array(old_weights) * np.array(sizes)) * new_w / np.sum(np.array(new_weights) * np.array(sizes))
              for new_w in new_weights] for old_weights, new_weights, sizes
             in zip(cluster_old_weights, cluster_new_weights, cluster_ratios)]
 
 
-def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=(1, 1)):
+def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=None):
     model.train()
     history = pd.DataFrame([], columns=["loss", "accuracy"], index=range(epochs))
 
@@ -110,9 +111,7 @@ def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=
         sum_num_correct = 0
         sum_loss = 0
 
-        batches = enumerate(train_loader)
-
-        for batch_idx, (data, target, protect) in batches:
+        for batch_idx, (data, target, protect) in enumerate(train_loader):
             data, target, protect = data.to(device, dtype=torch.float), target.to(device,
                                                                                   dtype=torch.float), protect.to(
                 device, dtype=torch.float)
@@ -121,9 +120,9 @@ def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=
 
             weights = torch.tensor(
                 [minority_w[0] if not target[i] and not protect[i] else 1 for i in range(len(data))]).type(torch.float)\
-                      * torch.tensor(
+                        * torch.tensor(
                 [minority_w[1] if target[i] and not protect[i] else 1 for i in range(len(data))]).type(
-                torch.float)
+                torch.float) if minority_w else None
 
             criterion = torch.nn.BCELoss(weight=weights)
             loss = criterion(output.view_as(target), target)
@@ -154,9 +153,10 @@ def train_reweight(model, device, train_loader, optimizer, epochs, verbose=1, nu
     cluster_weights = [[1.0 for _ in range(num_clusters)] for _ in range(num_labels)]
     # cluster_weights = [[-0.0762689, 1.64822], [-0.22587, 1.21449]]
     history = pd.DataFrame([], columns=["loss", "accuracy"] +
-                                       [f"cluster_acc_{t}{s}" for s in range(num_clusters) for t in range(num_labels)] +
-                                       [f"cluster_weight_{t}{s}" for s in range(num_clusters) for t in range(num_labels)] +
-                                       [f"cluster_grad_{t}{s}" for s in range(num_clusters) for t in range(num_labels)],
+                                       [f"cluster_acc_{t}{s}" for t in range(num_labels) for s in range(num_clusters)] +
+                                       [f"cluster_weight_{t}{s}" for t in range(num_labels) for s in
+                                        range(num_clusters)] +
+                                       [f"cluster_grad_{t}{s}" for t in range(num_labels) for s in range(num_clusters)],
                            index=range(epochs))
 
     for epoch in range(epochs):
@@ -164,7 +164,7 @@ def train_reweight(model, device, train_loader, optimizer, epochs, verbose=1, nu
         sum_loss = 0
 
         batches = enumerate(train_loader)
-        cluster_counts = [[[0, 0] for _ in range(num_clusters)] for _ in range(num_labels)]
+        cluster_counts = [[[0.0, 0.0] for _ in range(num_clusters)] for _ in range(num_labels)]
         cluster_grads = [[[] for _ in range(num_clusters)] for _ in range(num_labels)]
 
         for batch_idx, (data, target, cluster) in batches:
@@ -195,7 +195,7 @@ def train_reweight(model, device, train_loader, optimizer, epochs, verbose=1, nu
         cluster_grads = [[np.average(l) for l in clusters] for clusters in cluster_grads]
         cluster_new_weights = gradient_updates(cluster_weights, cluster_grads, clusters_accs, cluster_lr)
         cluster_weights = normalize(cluster_weights, cluster_new_weights,
-                                   [[total for correct, total in counts] for counts in cluster_counts])
+                                    [[total for correct, total in counts] for counts in cluster_counts])
 
         acc = 100. * sum_num_correct / len(train_loader.dataset)
         # cluster_weights = update_weights(cluster_weights, clusters_accs) # weights update by customized heuristic

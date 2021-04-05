@@ -55,7 +55,22 @@ def statistical_parity_difference(confusion_matrix_1, confusion_matrix_2):
 
 
 def reweighting_weights(df, label, protect):
-    counts_high = df[df[label] == 1][protect].value_counts()
-    counts_low = df[df[label] == 0][protect].value_counts()
-    M, F = 1, 0
-    return counts_low[M] / counts_low[F], counts_high[M] / counts_high[F]
+    """
+    Computes the weights of minority class for each label. Note that this method only supports one protected attribute
+    :param df: The dataset
+    :param label: The label column
+    :param protect: The protected atribute (of size 1)
+    :return: The optimal weights in order to have same distribution for each class
+    """
+    counts_high = df[df[label] == 1][protect[0]].value_counts()
+    counts_low = df[df[label] == 0][protect[0]].value_counts()
+    Maj, Min = 1, 0
+    return counts_low[Maj] / counts_low[Min], counts_high[Maj] / counts_high[Min]
+
+
+def equalizing_odds(preds, labels, protect):
+    counts = [[[0.0, 0.0] for i in range(len(np.unique(protect)))] for _ in range(len(np.unique(labels)))]
+    for pred, label, subgroup in zip(preds, labels, protect):
+        counts[int(label)][int(subgroup)][0] += int(pred == label)
+        counts[int(label)][int(subgroup)][1] += 1
+    return [[round(p[0] / p[1], 3) for p in l] for l in counts]
