@@ -80,7 +80,7 @@ train_dataset, test_dataset, train_w_minority = train_test_dataset(FILE_PATH, LA
                                                                    balanced=balanced,
                                                                    reweighting=MODE)
 
-sys.exit(0)
+
 device = torch.device("cpu")
 num_predictor_features = train_dataset[0][0].shape[0]
 # Data loaders
