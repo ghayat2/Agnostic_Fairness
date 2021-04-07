@@ -26,9 +26,9 @@ for opt, arg in opts:
             "main.py  --label_column=<label_column> --protect_columns=<protect_columns (separated by a comma, no space)>"
             " --mode=<mode>"
             "0: Model is trained on bias dataset as it is, no reweighting"
-            "1: Model is trained on customed dataset, where each sample is reweighted as to have same number of"
-            "protected samples per class (only work when there is one protected column)"
-            "2: Model is traied on customed dataset, where weights of each cluster is dynamically reweighted"
+            "1: Model is trained on customed dataset, where each sample is reweighted as to have the same number of"
+            "minority and majority samples per class (only works when there is one protected column)"
+            "2: Model is trained on customed dataset, where weights of each cluster is dynamically updated"
             "--start_epoch=<start_epoch> --num_epoch=<num_epoch> --id=<id> --num_trials=<num_trials>"
             "--num_proxies= <num_proxies> --file_path=<file_path> --verbose=<verbose> --lr=<lr> "
             "--cluster_lr=<cluster_lr> --batch_size=<batch_size>")
@@ -79,6 +79,8 @@ train_dataset, test_dataset, train_w_minority = train_test_dataset(FILE_PATH, LA
                                                                    num_proxy_to_remove=NUM_PROXIES,
                                                                    balanced=balanced,
                                                                    reweighting=MODE)
+
+sys.exit(0)
 device = torch.device("cpu")
 num_predictor_features = train_dataset[0][0].shape[0]
 # Data loaders
@@ -97,13 +99,13 @@ for trial in range(NUM_TRIALS):
         train(predictor, device, train_loader, optimizer, NUM_EPOCH, verbose=VERBOSE,
               minority_w=train_w_minority if MODE == 1 else None)
 
-    print(train_history[[c for c in train_history.columns if "cluster" in c]])
+    # print(train_history[[c for c in train_history.columns if "cluster" in c]])
 
     ###### Test set
     train_pred_labels, train_loss, train_accuracy = test(predictor, device, train_loader)
     test_pred_labels, test_loss, test_accuracy = test(predictor, device, test_loader)
 
-    train_accuracies.append(train_accuracy);
+    train_accuracies.append(train_accuracy)
     test_accuracies.append(test_accuracy)
 
     accs = equalizing_odds(test_pred_labels, test_loader.dataset.label, test_loader.dataset.protect)

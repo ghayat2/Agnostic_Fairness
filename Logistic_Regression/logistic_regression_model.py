@@ -42,7 +42,7 @@ def update_weights(weights, cluster_accs):
     Update the cluster weights for the next epoch
     :param weights: The weights that need to be updated
     :param cluster_accs: The accuracy of each cluster
-    :return:
+    :return: the updated weights
     """
     cst = 1
     for i, cluster in enumerate(cluster_accs):
@@ -55,7 +55,11 @@ def update_weights(weights, cluster_accs):
 
 def my_BCELoss(preds, labels, weights):
     """
-    Weighted Binary Cross Entropy Loss
+    The weighted binary cross entropy loss
+    :param preds: predictions
+    :param labels: labels
+    :param weights: weights
+    :return: the loss value
     """
     return torch.mean(-weights * (labels * torch.log(preds) + (1 - labels) * torch.log(1 - preds)))
 
@@ -104,6 +108,18 @@ def normalize(cluster_old_weights, cluster_new_weights, cluster_sizes):
 
 
 def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=None):
+    """
+    Trains the model in MODE 0 or 1. When MODE is 1, a minority weight is given for each class and applied to samples
+    belonging to thr minority group. If MODE is 0, no weights is applied to the dataset.
+    :param model: the model
+    :param device: the device on which the model is trained
+    :param train_loader: the training set
+    :param optimizer: the optimizer
+    :param epochs: the number of epochs
+    :param verbose: print tracking notifications while training
+    :param minority_w: the minority weights to apply the the minority group. If None, then MODE is 0, else MODE is 1
+    :return: the performance history of the model during the training process
+    """
     model.train()
     history = pd.DataFrame([], columns=["loss", "accuracy"], index=range(epochs))
 
@@ -113,14 +129,14 @@ def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=
 
         for batch_idx, (data, target, protect) in enumerate(train_loader):
             data, target, protect = data.to(device, dtype=torch.float), target.to(device,
-                                                                                  dtype=torch.float), protect.to(
-                device, dtype=torch.float)
+                                                                                  dtype=torch.float), protect.to(device,
+                                                                                                                 dtype=torch.float)
             optimizer.zero_grad()
             logits, output = model(data)
 
             weights = torch.tensor(
-                [minority_w[0] if not target[i] and not protect[i] else 1 for i in range(len(data))]).type(torch.float)\
-                        * torch.tensor(
+                [minority_w[0] if not target[i] and not protect[i] else 1 for i in range(len(data))]).type(torch.float) \
+                      * torch.tensor(
                 [minority_w[1] if target[i] and not protect[i] else 1 for i in range(len(data))]).type(
                 torch.float) if minority_w else None
 
@@ -149,6 +165,20 @@ def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=
 
 def train_reweight(model, device, train_loader, optimizer, epochs, verbose=1, num_clusters=2, num_labels=2,
                    cluster_lr=10):
+    """
+    Trains the model in MODE 2. Each cluster has an individual weight that is updating at each epoch depending on
+    the cluster's accuracy.
+    :param model: The model
+    :param device: The device the model is trained on
+    :param train_loader: the training set
+    :param optimizer: the optimizer
+    :param epochs: the number of epochs
+    :param verbose: If strictly positive, prints tracking notification during training
+    :param num_clusters: the number of cluster per class
+    :param num_labels: the number of classes (binary vs multiclass classification)
+    :param cluster_lr: The rate at which the cluster weights are being updated
+    :return: the performance history of the model during the training process
+    """
     model.train()
     cluster_weights = [[1.0 for _ in range(num_clusters)] for _ in range(num_labels)]
     # cluster_weights = [[-0.0762689, 1.64822], [-0.22587, 1.21449]]
@@ -160,14 +190,11 @@ def train_reweight(model, device, train_loader, optimizer, epochs, verbose=1, nu
                            index=range(epochs))
 
     for epoch in range(epochs):
-        sum_num_correct = 0
-        sum_loss = 0
-
-        batches = enumerate(train_loader)
+        sum_num_correct, sum_loss = 0, 0
         cluster_counts = [[[0.0, 0.0] for _ in range(num_clusters)] for _ in range(num_labels)]
         cluster_grads = [[[] for _ in range(num_clusters)] for _ in range(num_labels)]
 
-        for batch_idx, (data, target, cluster) in batches:
+        for batch_idx, (data, target, cluster) in enumerate(train_loader):
             data, target, protect = data.to(device, dtype=torch.float), target.to(device, dtype=torch.float), \
                                     cluster.to(device, dtype=torch.float)
             optimizer.zero_grad()
@@ -181,7 +208,6 @@ def train_reweight(model, device, train_loader, optimizer, epochs, verbose=1, nu
             pred = pred.float()
 
             correct = pred.eq(target.view_as(pred)).sum().item()
-
             sum_num_correct += correct
             sum_loss += loss.item() * train_loader.batch_size
             loss.backward()
@@ -217,9 +243,15 @@ def train_reweight(model, device, train_loader, optimizer, epochs, verbose=1, nu
 
 
 def test(model, device, test_loader):
+    """
+    Evaluates the quality of the predictions of the trained model on a test set
+    :param model: the trained model
+    :param device: the device the model is evaluated on
+    :param test_loader: the test set
+    :return: the model predictions, loss values and accuracy
+    """
     model.eval()
-    test_loss = 0
-    correct = 0
+    test_loss, correct = 0, 0
     test_pred = torch.zeros(0, 1).to(device)
     with torch.no_grad():
         for data, target, protect in test_loader:

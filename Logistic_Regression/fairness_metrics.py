@@ -59,7 +59,7 @@ def reweighting_weights(df, label, protect):
     Computes the weights of minority class for each label. Note that this method only supports one protected attribute
     :param df: The dataset
     :param label: The label column
-    :param protect: The protected atribute (of size 1)
+    :param protect: The protected attribute list (of size 1)
     :return: The optimal weights in order to have same distribution for each class
     """
     counts_high = df[df[label] == 1][protect[0]].value_counts()
@@ -69,6 +69,13 @@ def reweighting_weights(df, label, protect):
 
 
 def equalizing_odds(preds, labels, protect):
+    """
+    Evaluates the accuracy of the predictions for each cluster of each class
+    :param preds: the predictions
+    :param labels: the true labels
+    :param protect: the cluster values
+    :return: the accuracy of the predictions from each cluster
+    """
     counts = [[[0.0, 0.0] for i in range(len(np.unique(protect)))] for _ in range(len(np.unique(labels)))]
     for pred, label, subgroup in zip(preds, labels, protect):
         counts[int(label)][int(subgroup)][0] += int(pred == label)

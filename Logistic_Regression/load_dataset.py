@@ -44,16 +44,11 @@ def df_without_k_proxies(df, label, protect, k):
 
 
 def balance_df_label(df, label, downsample=True):
-    majority_label, minority_label = df[label].value_counts().index[0], df[label].value_counts().index[1]
-    df_minority = df[df[label] == minority_label]
-    df_majority = df[df[label] == majority_label]
-
-    if downsample:
-        df_majority_downsampled = resample(df_majority, replace=False, n_samples=len(df_minority), random_state=1)
-        df_label_balanced = pd.concat([df_majority_downsampled, df_minority])
-    else:
-        df_minority_upsampled = resample(df_minority, replace=True, n_samples=len(df_majority), random_state=1)
-        df_label_balanced = pd.concat([df_majority, df_minority_upsampled])
+    min_label = df.groupby(label).size().min()
+    max_label = df.groupby(label).size().max()
+    func = lambda sublabel: resample(sublabel, replace=False,
+                                     n_samples=min_label if downsample else max_label, random_state=1)
+    df_label_balanced = df.groupby(label).apply(func).reset_index(drop=True)
     return df_label_balanced
 
 
@@ -65,11 +60,12 @@ def balance_df(df, label_col, protected_cols, label_only=False, downsample=True)
         for label in df[label_col].value_counts().index:
             df_filtered = df[df[label_col] == label]
             min_subgroup = df_filtered.groupby(protected_cols).size().min()
+            max_subgroup = df_filtered.groupby(protected_cols).size().max()
+            func = lambda subgroup: resample(subgroup, replace=False,
+                                             n_samples=min_subgroup if downsample else max_subgroup, random_state=1)
             subgroups = pd.concat(
-                [subgroups, df_filtered.groupby(protected_cols).apply(lambda subgroup: resample(subgroup, replace=False,
-                                                                                                n_samples=min_subgroup,
-                                                                                                random_state=1)).reset_index(
-                    drop=True)])
+                [subgroups, df_filtered.groupby(protected_cols).apply(func).reset_index(drop=True)])
+
         df_balanced_label = balance_df_label(subgroups, label_col, downsample=True)
     return df_balanced_label
 
@@ -105,6 +101,21 @@ def balance_df_(df, label, protect, label_only=False, downsample=True):
     conf = confusion_matrix(df_balanced_label[label].values, df_balanced_label[protect].values)
     print(conf, " balanced", label, protect)
     return df_balanced_label
+
+
+@DeprecationWarning
+def balance_df_label_(df, label, downsample=True):
+    majority_label, minority_label = df[label].value_counts().index[0], df[label].value_counts().index[1]
+    df_minority = df[df[label] == minority_label]
+    df_majority = df[df[label] == majority_label]
+
+    if downsample:
+        df_majority_downsampled = resample(df_majority, replace=False, n_samples=len(df_minority), random_state=1)
+        df_label_balanced = pd.concat([df_majority_downsampled, df_minority])
+    else:
+        df_minority_upsampled = resample(df_minority, replace=True, n_samples=len(df_majority), random_state=1)
+        df_label_balanced = pd.concat([df_majority, df_minority_upsampled])
+    return df_label_balanced
 
 
 def split_train_test(df, train=0.75):
