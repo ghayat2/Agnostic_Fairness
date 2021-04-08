@@ -57,7 +57,7 @@ def balance_df(df, label_col, protected_cols, label_only=False, downsample=True)
         df_balanced_label = balance_df_label(df, label_col, downsample=downsample)
     else:
         subgroups = pd.DataFrame([])
-        for label in df[label_col].value_counts().index:
+        for label in df[label_col].unique():
             df_filtered = df[df[label_col] == label]
             min_subgroup = df_filtered.groupby(protected_cols).size().min()
             max_subgroup = df_filtered.groupby(protected_cols).size().max()
@@ -128,11 +128,14 @@ def split_train_test(df, train=0.75):
 
 def statistics(df, label_col, protected_cols, verbose=0):
     stats = {}
-    for label in df[label_col].value_counts().index:
+    for label in df[label_col].unique():
         stats[label] = df[df[label_col] == label].groupby(protected_cols).apply(
-            lambda subgroup: len(subgroup) / len(df[df[label_col] == label]))
+            lambda subgroup: (len(subgroup), round(len(subgroup) / len(df[df[label_col] == label]), 3)))
     if verbose:
         print(stats)
+        for label in df[label_col].unique():
+            print("label: {}: {} samples ({:.2f}%)".format(label, len(df[df[label_col] == label]),
+                                                         len(df[df[label_col] == label])/len(df)*100))
     return stats
 
 
