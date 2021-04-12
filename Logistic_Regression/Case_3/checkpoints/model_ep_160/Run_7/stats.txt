@@ -1,0 +1,9 @@
+	Training accuracy: 0.832586 += 0.000000 
+Test accuracy: 0.834424 += 0.000000 
+Fairness accuracy: 
+ [[0.976 0.957]
+ [0.496 0.428]] 
+ += 
+ [[0. 0.]
+ [0. 0.]]Fairness accuracy: 
+ [[0.019000000000000017, 0.068]]

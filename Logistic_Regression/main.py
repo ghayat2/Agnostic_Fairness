@@ -8,7 +8,8 @@ from logistic_regression_model import *
 try:
     opts, args = getopt.getopt(sys.argv[1:], "h",
                                ["label_column=", "protect_columns=", "mode=", "start_epoch=", "num_epochs=", "id=",
-                                "num_trials=", "num_proxies=", "verbose=", "lr=", "cluster_lr=", "batch_size=",
+                                "num_trials=", "num_proxies=", "verbose=", "lr=", "update=", "update_lr=",
+                                "batch_size=",
                                 "balance="])
 except getopt.GetoptError:
     print("Wrong format ...")
@@ -18,21 +19,28 @@ except getopt.GetoptError:
 # INPUT PARAMS
 data_dir = '../Datasets/doctor_nurse/train_test_split'
 LABEL_COL, PROTECT_COLS, MODE, START_EPOCH, NUM_EPOCH, ID, NUM_TRIALS, NUM_PROXIES, FILE_PATH, VERBOSE, \
-LR_RATE, CLUSTER_LR, BATCH_SIZE, BALANCE = "income", ["gender"], 0, 0, 40, 1, False, 0, \
-                                  "../Datasets/adult_dataset/processed_adult.csv", 1, 0.001, 10, 1000, 1
+LR_RATE, UPDATE, UPDATE_LR, BATCH_SIZE, BALANCE = "income", ["gender"], 0, 0, 40, 1, False, 0, \
+                                                  "../Datasets/adult_dataset/processed_adult.csv", 1, 0.001, "cluster", 10, 1000, 1
 
 for opt, arg in opts:
     if opt == '-h':
         print(
-            "main.py  --label_column=<label_column> --protect_columns=<protect_columns (separated by a comma, no space)>"
+            "main.py  --label_column=<label_column> "
+            "--protect_columns=<protect_columns (separated by a comma, no space)>"
+            "gender - male vs female (protected)"
+            "race_White - white vs non-white (protected)"
             " --mode=<mode>"
             "0: Model is trained on bias dataset as it is, no reweighting"
             "1: Model is trained on customed dataset, where each sample is reweighted as to have the same number of"
             "minority and majority samples per class (only works when there is one protected column)"
             "2: Model is trained on customed dataset, where weights of each cluster is dynamically updated"
+            "--update=<update>"
+            "This parameter is only relevant when in MODE 2"
+            "cluster: each cluster has a weight"
+            "sample: each sample has a weight"
             "--start_epoch=<start_epoch> --num_epoch=<num_epoch> --id=<id> --num_trials=<num_trials>"
             "--num_proxies= <num_proxies> --file_path=<file_path> --verbose=<verbose> --lr=<lr> "
-            "--cluster_lr=<cluster_lr> --batch_size=<batch_size>"
+            "--update_lr=<update_lr> --batch_size=<batch_size>"
             "--balance=<balance>"
             "0: The training set and test set is not rebalanced in any way"
             "1: The training set is rebalanced in terms of labels and the test set is rebalanced in terms of label and"
@@ -60,22 +68,24 @@ for opt, arg in opts:
         VERBOSE = int(arg)
     if opt == '--lr':
         LR_RATE = float(arg)
-    if opt == '--cluster_lr':
-        CLUSTER_LR = float(arg)
+    if opt == '--update':
+        UPDATE = str(arg)
+    if opt == '--update_lr':
+        UPDATE_LR = float(arg)
     if opt == '--batch_size':
         BATCH_SIZE = int(arg)
     if opt == '--balance':
         BALANCE = int(arg)
 
-if MODE not in [0, 1, 2] or MODE == 1 and len(PROTECT_COLS) >= 2:
+if MODE not in [0, 1, 2] or MODE == 1 and len(PROTECT_COLS) >= 2 and UPDATE not in ["cluster", "sample"]:
     print("Arguments not valid: see flag -h for more information")
     sys.exit(1)
 
 print(
     f"RUNNING SCRIPT WITH ARGUMENTS : -label_column={LABEL_COL} -protect_columns={PROTECT_COLS} -mode={MODE}"
     f" -start_epoch={START_EPOCH} -num_epoch={NUM_EPOCH} -id={ID} -num_trials={NUM_TRIALS} -num_proxies={NUM_PROXIES}"
-    f"-file_path={FILE_PATH} -verbose={VERBOSE} -lr={LR_RATE} -cluster_lr={CLUSTER_LR} -batch_size={BATCH_SIZE}"
-    f"-balance={BALANCE}")
+    f"-file_path={FILE_PATH} -verbose={VERBOSE} -lr={LR_RATE} -update={UPDATE} -update_lr={UPDATE_LR}"
+    f"-batch_size={BATCH_SIZE} -balance={BALANCE}")
 
 """
 In order to test Case_1 and Case_2, we want the train and test set to have balanced labels, but we want the test set
@@ -101,10 +111,16 @@ for trial in range(NUM_TRIALS):
     predictor = Predictor(num_predictor_features).to(device)
     optimizer = optim.Adam(predictor.parameters(), lr=LR_RATE)
 
-    train_history = train_reweight(predictor, device, train_loader, optimizer, NUM_EPOCH,
-                                   num_clusters=2 ** len(PROTECT_COLS), verbose=VERBOSE) if MODE == 2 else \
-        train(predictor, device, train_loader, optimizer, NUM_EPOCH, verbose=VERBOSE,
-              minority_w=train_w_minority if MODE == 1 else None)
+    if MODE == 2:
+        args = [predictor, device, train_loader, optimizer, NUM_EPOCH, VERBOSE, 2 ** len(PROTECT_COLS),
+                2, UPDATE_LR]
+        func = train_sample_reweight if UPDATE == "sample" else train_cluster_reweight
+    else:
+        args = [predictor, device, train_loader, optimizer, NUM_EPOCH, VERBOSE,
+                train_w_minority if MODE == 1 else None]
+        func = train
+
+    train_history = func(*args)
 
     # print(train_history[[c for c in train_history.columns if "cluster" in c]])
 

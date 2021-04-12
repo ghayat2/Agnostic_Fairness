@@ -179,13 +179,14 @@ class Dataset(data.Dataset):
         X = self.features[index]
         y = self.label[index]
         z = self.protect[index]
-        return X, y, z
+        return X, y, z, index
 
 
 def train_test_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_remove=0,
-                       balanced={"train_label_only": True, "test_label_only": False, "downsample": True},
-                       reweighting=0):
+                       balanced=None, reweighting=0):
     # Loading the dataset
+    if balanced is None:
+        balanced = {"train_label_only": True, "test_label_only": False, "downsample": True}
     df = get_data(filepath)
 
     # Scaling the dataset

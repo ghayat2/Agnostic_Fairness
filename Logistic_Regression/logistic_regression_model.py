@@ -79,7 +79,7 @@ def get_cluster_grads(cluster_grads, new_grads, cluster, target):
     return cluster_grads
 
 
-def gradient_updates(weights, grads, accs, lr):
+def cluster_weight_updates(weights, grads, accs, lr):
     """
      Updates the cluster weights for the next epoch - the direction of the update depends on the cluster accuracy
     :param weights: The current weights of the clusters
@@ -93,7 +93,7 @@ def gradient_updates(weights, grads, accs, lr):
             in zip(weights, grads, accs)]
 
 
-def normalize(cluster_old_weights, cluster_new_weights, cluster_sizes):
+def normalize_clusters(cluster_old_weights, cluster_new_weights, cluster_sizes):
     """
     Normalizes the new weights with respect to the size of cluster.
     :param cluster_old_weights: The old weights of the clusters
@@ -105,6 +105,118 @@ def normalize(cluster_old_weights, cluster_new_weights, cluster_sizes):
     return [[np.sum(np.array(old_weights) * np.array(sizes)) * new_w / np.sum(np.array(new_weights) * np.array(sizes))
              for new_w in new_weights] for old_weights, new_weights, sizes
             in zip(cluster_old_weights, cluster_new_weights, cluster_ratios)]
+
+
+def normalize_samples(sample_old_weights, sample_new_weights):
+    """
+    Normalizes the new sample weights with respect to the size of cluster.
+    :param cluster_old_weights: The old weights of the clusters
+    :param cluster_new_weights: The new weights of the clusters
+    :param cluster_sizes: the size of the clusters
+    :return: The normalized sample weights
+    """
+    res_dict = [[{} for _ in range(len(sample_new_weights[0]))] for _ in range(len(sample_new_weights))]
+    for label, (old_weights, new_weights) in enumerate(
+            zip(sample_old_weights, sample_new_weights)):
+        cst_1, cst_2 = find_normalizing_cst(old_weights, new_weights)
+        for cluster, new_w_dic in enumerate(new_weights):
+            res_dict[label][cluster] = {k: cst_1 * w / cst_2 for k, w in new_w_dic.items()}
+    return res_dict
+
+
+def find_normalizing_cst(old_weights, new_weights):
+    """
+    Finds the sum of the sample gradients of each cluster
+    :param old_weights: old weights
+    :param new_weights: new weights
+    :return: the normalizing clonstants
+    """
+    cst_1, cst_2 = 0, 0
+    for old_dic, new_dic in zip(old_weights, new_weights):
+        cst_1 += np.sum(list(old_dic.values()))
+        cst_2 += np.sum(list(new_dic.values()))
+    return cst_1, cst_2
+
+
+def cluster_dic_init(dataset, value, num_clusters, num_labels):
+    """
+    Creates a data structure that contains a dictionary for each cluster with the initial value specified for each
+    sample key
+    :param dataset: the dataset
+    :param value: the initial value to give for each sample key
+    :param num_clusters: the number of clusters
+    :param num_labels: the number of classes
+    :return: the data structure
+    """
+    dicts = [[{} for _ in range(num_clusters)] for _ in range(num_labels)]
+    for _, labels, clusters, indexes in dataset:
+        for i, label, cluster in zip(indexes, labels, clusters):
+            dicts[int(label)][int(cluster)][int(i)] = value
+    return dicts
+
+
+def update_classification(correct_classification, indexes, predictions, labels, clusters):
+    """
+    Reports whether each sample has been correctly classified and sorts the prediction by class/cluster
+    :param correct_classification: the data structure to be updated
+    :param indexes: the sample indexes
+    :param predictions: the model predictions
+    :param labels: the sample labels
+    :param clusters: the sample cluster
+    :return: the updated data structure
+    """
+    for i, prediction, label, cluster in zip(indexes, predictions, labels, clusters):
+        correct_classification[int(label)][int(cluster)][int(i)] = int(prediction == label)
+    return correct_classification
+
+
+def get_sample_grads(sample_grads, indexes, grads, clusters, labels):
+    """
+    Updates the data structure containing all the sample gradients of the epoch
+    :param sample_grads: the data structure
+    :param indexes: the sample indexes
+    :param grads: the sample gradients
+    :param clusters: the sample cluster value
+    :param labels: the sample labels
+    :return: the updated data structure
+    """
+    for i, grad, cluster, label in zip(indexes, grads, clusters, labels):
+        sample_grads[int(label)][int(cluster)][int(i)] = grad
+    return sample_grads
+
+
+def sample_weight_updates(dataset, sample_weights, sample_grads, correct_classifications, clusters_accs, cluster_lr=10):
+    """
+    Updates the sample weights depending on the correctness of the model predictions and the sample gradients. The
+    weights updated is limited to the correctly classified samples from the better than average clusters (decreased)
+    and the incorrectly classified samples from the under average clusters (increased)
+    :param dataset: the dataset
+    :param sample_weights: the sample weights
+    :param sample_grads: the sample gradients
+    :param correct_classifications: the structure containing the correctness of predictions
+    :param clusters_accs: the accuracy of the clusters
+    :param cluster_lr: the learning rate
+    :return: the new weights, the number of weights updated
+    """
+    new_dict = [[{} for _ in range(len(sample_weights[0]))] for _ in range(len(sample_weights))]
+    updates = [[0 for _ in range(len(sample_weights[0]))] for _ in range(len(sample_weights))]
+    for _, labels, clusters, indexes in dataset:
+        for i, label, cluster in zip(indexes, labels, clusters):
+            if clusters_accs[int(label)][int(cluster)] < np.average(clusters_accs[int(label)]) \
+                    and not correct_classifications[int(label)][int(cluster)][int(i)]:
+                new_dict[int(label)][int(cluster)][int(i)] = sample_weights[int(label)][int(cluster)][int(i)] \
+                                                             + cluster_lr * sample_grads[int(label)][int(cluster)][
+                                                                 int(i)]
+                updates[int(label)][int(cluster)] += 1
+            elif clusters_accs[int(label)][int(cluster)] > np.average(clusters_accs[int(label)]) \
+                    and correct_classifications[int(label)][int(cluster)][int(i)]:
+                new_dict[int(label)][int(cluster)][int(i)] = sample_weights[int(label)][int(cluster)][int(i)] \
+                                                             - cluster_lr * sample_grads[int(label)][int(cluster)][
+                                                                 int(i)]
+                updates[int(label)][int(cluster)] -= 1
+            else:
+                new_dict[int(label)][int(cluster)][int(i)] = sample_weights[int(label)][int(cluster)][int(i)]
+    return new_dict, updates
 
 
 def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=None):
@@ -127,7 +239,7 @@ def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=
         sum_num_correct = 0
         sum_loss = 0
 
-        for batch_idx, (data, target, protect) in enumerate(train_loader):
+        for batch_idx, (data, target, protect, _) in enumerate(train_loader):
             data, target, protect = data.to(device, dtype=torch.float), target.to(device,
                                                                                   dtype=torch.float), protect.to(device,
                                                                                                                  dtype=torch.float)
@@ -163,8 +275,8 @@ def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=
     return history
 
 
-def train_reweight(model, device, train_loader, optimizer, epochs, verbose=1, num_clusters=2, num_labels=2,
-                   cluster_lr=10):
+def train_cluster_reweight(model, device, train_loader, optimizer, epochs, verbose=1, num_clusters=2, num_labels=2,
+                           cluster_lr=10):
     """
     Trains the model in MODE 2. Each cluster has an individual weight that is updating at each epoch depending on
     the cluster's accuracy.
@@ -194,7 +306,7 @@ def train_reweight(model, device, train_loader, optimizer, epochs, verbose=1, nu
         cluster_counts = [[[0.0, 0.0] for _ in range(num_clusters)] for _ in range(num_labels)]
         cluster_grads = [[[] for _ in range(num_clusters)] for _ in range(num_labels)]
 
-        for batch_idx, (data, target, cluster) in enumerate(train_loader):
+        for batch_idx, (data, target, cluster, _) in enumerate(train_loader):
             data, target, protect = data.to(device, dtype=torch.float), target.to(device, dtype=torch.float), \
                                     cluster.to(device, dtype=torch.float)
             optimizer.zero_grad()
@@ -219,9 +331,9 @@ def train_reweight(model, device, train_loader, optimizer, epochs, verbose=1, nu
         sum_loss /= len(train_loader.dataset)
         clusters_accs = [[l[0] / l[1] for l in cluster] for cluster in cluster_counts]
         cluster_grads = [[np.average(l) for l in clusters] for clusters in cluster_grads]
-        cluster_new_weights = gradient_updates(cluster_weights, cluster_grads, clusters_accs, cluster_lr)
-        cluster_weights = normalize(cluster_weights, cluster_new_weights,
-                                    [[total for correct, total in counts] for counts in cluster_counts])
+        cluster_new_weights = cluster_weight_updates(cluster_weights, cluster_grads, clusters_accs, cluster_lr)
+        cluster_weights = normalize_clusters(cluster_weights, cluster_new_weights,
+                                             [[total for correct, total in counts] for counts in cluster_counts])
 
         acc = 100. * sum_num_correct / len(train_loader.dataset)
         # cluster_weights = update_weights(cluster_weights, clusters_accs) # weights update by customized heuristic
@@ -242,6 +354,88 @@ def train_reweight(model, device, train_loader, optimizer, epochs, verbose=1, nu
     return history
 
 
+def train_sample_reweight(model, device, train_loader, optimizer, epochs, verbose=1, num_clusters=2, num_labels=2,
+                          sample_lr=10):
+    """
+    Trains the model in MODE 2. Each sample has an individual weight that is updating at each epoch depending on
+    the cluster's accuracy.
+    Note:
+    At each epoch, the weights updated is limited to the correctly classified samples from the better than average
+    clusters (decreased) and the incorrectly classified samples from the under average clusters (increased)
+    :param model: The model
+    :param device: The device the model is trained on
+    :param train_loader: the training set
+    :param optimizer: the optimizer
+    :param epochs: the number of epochs
+    :param verbose: If strictly positive, prints tracking notification during training
+    :param num_clusters: the number of cluster per class
+    :param num_labels: the number of classes (binary vs multiclass classification)
+    :param sample_lr: The rate at which the samplel weights are being updated
+    :return: the performance history of the model during the training process
+    """
+    model.train()
+    sample_weights = cluster_dic_init(train_loader, 1.0, num_clusters, num_labels)
+
+    history = pd.DataFrame([], columns=["loss", "accuracy"] +
+                                       [f"cluster_acc_{t}{s}" for t in range(num_labels) for s in range(num_clusters)] +
+                                       [f"cluster_updates_{t}{s}" for t in range(num_labels) for s in
+                                        range(num_clusters)],
+                           index=range(epochs))
+
+    for epoch in range(epochs):
+        sum_num_correct, sum_loss = 0, 0
+        correct_classifications = cluster_dic_init(train_loader, 0, num_clusters, num_labels)
+        sample_grads = cluster_dic_init(train_loader, 0, num_clusters, num_labels)
+
+        for batch_idx, (data, target, cluster, indexes) in enumerate(train_loader):
+            data, target, protect = data.to(device, dtype=torch.float), target.to(device, dtype=torch.float), \
+                                    cluster.to(device, dtype=torch.float)
+            optimizer.zero_grad()
+            logits, output = model(data)
+            weights = torch.tensor(
+                [sample_weights[int(t)][int(c)][int(i)] for c, t, i in zip(cluster, target, indexes)],
+                requires_grad=True).type(torch.float)
+
+            loss = my_BCELoss(output.view_as(target), target, weights)
+            pred = (output > 0.5) * 1
+            pred = pred.float()
+
+            correct = pred.eq(target.view_as(pred)).sum().item()
+            sum_num_correct += correct
+            sum_loss += loss.item() * train_loader.batch_size
+            loss.backward()
+            optimizer.step()
+
+            correct_classifications = update_classification(correct_classifications, indexes, pred, target, cluster)
+            sample_grads = get_sample_grads(sample_grads, indexes, weights.grad.numpy(), cluster, target)
+
+        sum_loss /= len(train_loader.dataset)
+        clusters_accs = [[sum(cluster.values()) / len(cluster) for cluster in clusters]
+                         for clusters in correct_classifications]
+
+        new_sample_weights, updates = sample_weight_updates(train_loader, sample_weights, sample_grads,
+                                                            correct_classifications,
+                                                            clusters_accs, sample_lr)
+
+        sample_weights = normalize_samples(sample_weights, new_sample_weights)
+
+        acc = 100. * sum_num_correct / len(train_loader.dataset)
+        history.iloc[epoch] = [sum_loss, acc] + list(np.array(clusters_accs).reshape((-1))) \
+                              + list(np.array(updates).reshape((-1)))
+        if verbose:
+            print(
+                '\nEpoch: {} - Train set: Average loss: {:.2e}, Accuracy: {}/{} ({:.0f}%), Cluster accuracies: {}, '
+                'number of updates {}\n'
+                    .format(
+                    epoch,
+                    sum_loss, sum_num_correct, len(train_loader.dataset),
+                    acc,
+                    str(clusters_accs),
+                    str(updates)))
+
+    return history
+
+
 def test(model, device, test_loader):
     """
     Evaluates the quality of the predictions of the trained model on a test set
@@ -254,7 +448,7 @@ def test(model, device, test_loader):
     test_loss, correct = 0, 0
     test_pred = torch.zeros(0, 1).to(device)
     with torch.no_grad():
-        for data, target, protect in test_loader:
+        for data, target, protect, _ in test_loader:
             data, target, protect = data.to(device, dtype=torch.float), target.to(device, dtype=torch.float), \
                                     protect.to(device, dtype=torch.float)
             logit, output = model(data)
