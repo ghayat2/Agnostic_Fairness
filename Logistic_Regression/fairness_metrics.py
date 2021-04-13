@@ -54,7 +54,8 @@ def statistical_parity_difference(confusion_matrix_1, confusion_matrix_2):
     return frac_prediced_positive_1 - frac_prediced_positive_2
 
 
-def reweighting_weights(df, label, protect):
+@DeprecationWarning
+def reweighting_weights_(df, label, protect):
     """
     Computes the weights of minority class for each label. Note that this method only supports one protected attribute
     :param df: The dataset
@@ -66,6 +67,34 @@ def reweighting_weights(df, label, protect):
     counts_low = df[df[label] == 0][protect[0]].value_counts()
     Maj, Min = 1, 0
     return counts_low[Maj] / counts_low[Min], counts_high[Maj] / counts_high[Min]
+
+
+def reweighting_weights(df, label, protect):
+    """
+    Returns the weights to apply to the samples from the minority group for the two classes
+    Note:
+    This method for binary classification when there is one minority group
+    :param df: the dataset
+    :param label: label == 0 is the unfavorable class (unfav), label == 1 is the favorable class (fav)
+    :param protect: protect == 0 is the unprivilege (up) group, protect == 1 is the privilege group (p)
+    :return: the weights to apply to the minority group when training
+    """
+    # This method works only when there is one protected attribute
+    protect = protect[0]
+
+    n = len(df)
+    n_unfav, n_fav = len(df[df[label] == 0]), len(df[df[label] == 1])
+    n_up, n_p = len(df[df[protect] == 0]), len(df[df[protect] == 1]),
+
+    n_up_unfav, n_p_unfav = len(df[np.logical_and(df[label] == 0, df[protect] == 0)]), len(df[np.logical_and(df[label] == 0, df[protect] == 1)])
+    n_up_fav, n_p_fav = len(df[np.logical_and(df[label] == 1, df[protect] == 0)]), len(df[np.logical_and(df[label] == 1, df[protect] == 1)])
+
+    w_p_fav = n_fav * n_p / (n * n_p_fav)
+    w_p_unfav = n_unfav * n_p / (n * n_p_unfav)
+    w_up_fav = n_fav * n_up / (n * n_up_fav)
+    w_up_unfav = n_unfav * n_up / (n * n_up_unfav)
+
+    return w_up_unfav / w_p_unfav, w_up_fav / w_p_fav
 
 
 def equalizing_odds(preds, labels, protect):

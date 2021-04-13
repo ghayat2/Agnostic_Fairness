@@ -138,7 +138,7 @@ def find_normalizing_cst(old_weights, new_weights):
     return cst_1, cst_2
 
 
-def cluster_dic_init(dataset, value, num_clusters, num_labels):
+def cluster_dic_init(dataset, values, num_clusters, num_labels):
     """
     Creates a data structure that contains a dictionary for each cluster with the initial value specified for each
     sample key
@@ -148,10 +148,14 @@ def cluster_dic_init(dataset, value, num_clusters, num_labels):
     :param num_labels: the number of classes
     :return: the data structure
     """
+    if isinstance(values, float):
+        values = [[values for _ in range(num_clusters)] for _ in range(num_labels)]
+
     dicts = [[{} for _ in range(num_clusters)] for _ in range(num_labels)]
+
     for _, labels, clusters, indexes in dataset:
         for i, label, cluster in zip(indexes, labels, clusters):
-            dicts[int(label)][int(cluster)][int(i)] = value
+            dicts[int(label)][int(cluster)][int(i)] = values[int(label)][int(cluster)]
     return dicts
 
 
@@ -276,7 +280,7 @@ def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=
 
 
 def train_cluster_reweight(model, device, train_loader, optimizer, epochs, verbose=1, num_clusters=2, num_labels=2,
-                           cluster_lr=10):
+                           cluster_lr=10, cluster_weights=None):
     """
     Trains the model in MODE 2. Each cluster has an individual weight that is updating at each epoch depending on
     the cluster's accuracy.
@@ -289,10 +293,12 @@ def train_cluster_reweight(model, device, train_loader, optimizer, epochs, verbo
     :param num_clusters: the number of cluster per class
     :param num_labels: the number of classes (binary vs multiclass classification)
     :param cluster_lr: The rate at which the cluster weights are being updated
+    :param cluster_weights: Values with which to initialize cluster weights
     :return: the performance history of the model during the training process
     """
     model.train()
-    cluster_weights = [[1.0 for _ in range(num_clusters)] for _ in range(num_labels)]
+    if not cluster_weights:
+        cluster_weights = [[1.0 for _ in range(num_clusters)] for _ in range(num_labels)]
     # cluster_weights = [[-0.0762689, 1.64822], [-0.22587, 1.21449]]
     history = pd.DataFrame([], columns=["loss", "accuracy"] +
                                        [f"cluster_acc_{t}{s}" for t in range(num_labels) for s in range(num_clusters)] +
@@ -355,7 +361,7 @@ def train_cluster_reweight(model, device, train_loader, optimizer, epochs, verbo
 
 
 def train_sample_reweight(model, device, train_loader, optimizer, epochs, verbose=1, num_clusters=2, num_labels=2,
-                          sample_lr=10):
+                          sample_lr=10, init_weights=None):
     """
     Trains the model in MODE 2. Each sample has an individual weight that is updating at each epoch depending on
     the cluster's accuracy.
@@ -371,10 +377,11 @@ def train_sample_reweight(model, device, train_loader, optimizer, epochs, verbos
     :param num_clusters: the number of cluster per class
     :param num_labels: the number of classes (binary vs multiclass classification)
     :param sample_lr: The rate at which the samplel weights are being updated
+    :param init_weights: cluster weight values to initialize sample weights with
     :return: the performance history of the model during the training process
     """
     model.train()
-    sample_weights = cluster_dic_init(train_loader, 1.0, num_clusters, num_labels)
+    sample_weights = cluster_dic_init(train_loader, init_weights if init_weights else 1.0, num_clusters, num_labels)
 
     history = pd.DataFrame([], columns=["loss", "accuracy"] +
                                        [f"cluster_acc_{t}{s}" for t in range(num_labels) for s in range(num_clusters)] +
@@ -384,8 +391,8 @@ def train_sample_reweight(model, device, train_loader, optimizer, epochs, verbos
 
     for epoch in range(epochs):
         sum_num_correct, sum_loss = 0, 0
-        correct_classifications = cluster_dic_init(train_loader, 0, num_clusters, num_labels)
-        sample_grads = cluster_dic_init(train_loader, 0, num_clusters, num_labels)
+        correct_classifications = cluster_dic_init(train_loader, 0.0, num_clusters, num_labels)
+        sample_grads = cluster_dic_init(train_loader, 0.0, num_clusters, num_labels)
 
         for batch_idx, (data, target, cluster, indexes) in enumerate(train_loader):
             data, target, protect = data.to(device, dtype=torch.float), target.to(device, dtype=torch.float), \

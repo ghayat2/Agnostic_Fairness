@@ -8,43 +8,48 @@ from logistic_regression_model import *
 try:
     opts, args = getopt.getopt(sys.argv[1:], "h",
                                ["label_column=", "protect_columns=", "mode=", "start_epoch=", "num_epochs=", "id=",
-                                "num_trials=", "num_proxies=", "verbose=", "lr=", "update=", "update_lr=",
-                                "batch_size=",
-                                "balance="])
+                                "num_trials=", "num_proxies=", "verbose=", "lr=", "update=", "weights_init=",
+                                "update_lr=", "batch_size=", "balance="])
 except getopt.GetoptError:
-    print("Wrong format ...")
+    print("Wrong format, see -h for help ...")
     print(sys.argv)
     sys.exit(2)
 
 # INPUT PARAMS
 data_dir = '../Datasets/doctor_nurse/train_test_split'
 LABEL_COL, PROTECT_COLS, MODE, START_EPOCH, NUM_EPOCH, ID, NUM_TRIALS, NUM_PROXIES, FILE_PATH, VERBOSE, \
-LR_RATE, UPDATE, UPDATE_LR, BATCH_SIZE, BALANCE = "income", ["gender"], 0, 0, 40, 1, False, 0, \
-                                                  "../Datasets/adult_dataset/processed_adult.csv", 1, 0.001, "cluster", 10, 1000, 1
+LR_RATE, UPDATE, WEIGHTS_INIT, UPDATE_LR, BATCH_SIZE, BALANCE = "income", ["gender"], 0, 0, 40, 1, False, 0, \
+                                                                "../Datasets/adult_dataset/processed_adult.csv", 1, 0.001, \
+                                                                "cluster", 0, 10, 1000, 1
 
 for opt, arg in opts:
     if opt == '-h':
         print(
-            "main.py  --label_column=<label_column> "
-            "--protect_columns=<protect_columns (separated by a comma, no space)>"
-            "gender - male vs female (protected)"
-            "race_White - white vs non-white (protected)"
-            " --mode=<mode>"
-            "0: Model is trained on bias dataset as it is, no reweighting"
-            "1: Model is trained on customed dataset, where each sample is reweighted as to have the same number of"
+            "--label_column=<label_column> \n "
+            "--protect_columns=<protect_columns> (separated by a comma, no space) \n"
+            "gender - male vs female (protected) \n"
+            "race_White - white vs non-white (protected) \n"
+            " --mode=<mode> \n"
+            "0: Model is trained on bias dataset as it is, no reweighting \n"
+            "1: Model is trained on customed dataset, where each sample is reweighted as to have the same number of \n"
             "minority and majority samples per class (only works when there is one protected column)"
-            "2: Model is trained on customed dataset, where weights of each cluster is dynamically updated"
-            "--update=<update>"
-            "This parameter is only relevant when in MODE 2"
-            "cluster: each cluster has a weight"
-            "sample: each sample has a weight"
-            "--start_epoch=<start_epoch> --num_epoch=<num_epoch> --id=<id> --num_trials=<num_trials>"
-            "--num_proxies= <num_proxies> --file_path=<file_path> --verbose=<verbose> --lr=<lr> "
-            "--update_lr=<update_lr> --batch_size=<batch_size>"
-            "--balance=<balance>"
-            "0: The training set and test set is not rebalanced in any way"
+            "2: Model is trained on customed dataset, where weights of each cluster is dynamically updated \n"
+            "--update=<update> \n"
+            "This parameter is only relevant when in MODE 2 \n"
+            "cluster: each cluster has a weight \n"
+            "sample: each sample has a weight \n"
+            "--weights_init \n"
+            "This parameter is only relevant in MODE 2 \n"
+            "0: the cluster/sample weights are initialized with unit weight \n"
+            "1: the cluster/sample weights are initialized with weights from MODE 1 (only works when there"
+            "is one protected column) \n"
+            "--start_epoch=<start_epoch> \n--num_epoch=<num_epoch> \n--id=<id> \n--num_trials=<num_trials> \n"
+            "--num_proxies= <num_proxies> \n--file_path=<file_path> \n--verbose=<verbose> \n--lr=<lr> \n "
+            "--update_lr=<update_lr> \n--batch_size=<batch_size> \n"
+            "--balance=<balance> \n"
+            "0: The training set and test set is not rebalanced in any way \n"
             "1: The training set is rebalanced in terms of labels and the test set is rebalanced in terms of label and"
-            "groups/subgroups")
+            "groups/subgroups \n")
         sys.exit()
     if opt == '--label_column':
         LABEL_COL = int(arg)
@@ -70,6 +75,8 @@ for opt, arg in opts:
         LR_RATE = float(arg)
     if opt == '--update':
         UPDATE = str(arg)
+    if opt == '--weights_init':
+        WEIGHTS_INIT = int(arg)
     if opt == '--update_lr':
         UPDATE_LR = float(arg)
     if opt == '--batch_size':
@@ -77,15 +84,16 @@ for opt, arg in opts:
     if opt == '--balance':
         BALANCE = int(arg)
 
-if MODE not in [0, 1, 2] or MODE == 1 and len(PROTECT_COLS) >= 2 and UPDATE not in ["cluster", "sample"]:
+if MODE not in [0, 1, 2] or (MODE == 1 and len(PROTECT_COLS) >= 2) or UPDATE not in ["cluster", "sample"] \
+        or (WEIGHTS_INIT and len(PROTECT_COLS) >= 2):
     print("Arguments not valid: see flag -h for more information")
     sys.exit(1)
 
 print(
     f"RUNNING SCRIPT WITH ARGUMENTS : -label_column={LABEL_COL} -protect_columns={PROTECT_COLS} -mode={MODE}"
     f" -start_epoch={START_EPOCH} -num_epoch={NUM_EPOCH} -id={ID} -num_trials={NUM_TRIALS} -num_proxies={NUM_PROXIES}"
-    f"-file_path={FILE_PATH} -verbose={VERBOSE} -lr={LR_RATE} -update={UPDATE} -update_lr={UPDATE_LR}"
-    f"-batch_size={BATCH_SIZE} -balance={BALANCE}")
+    f"-file_path={FILE_PATH} -verbose={VERBOSE} -lr={LR_RATE} -update={UPDATE} -weights_init={WEIGHTS_INIT} "
+    f"-update_lr={UPDATE_LR} -batch_size={BATCH_SIZE} -balance={BALANCE}")
 
 """
 In order to test Case_1 and Case_2, we want the train and test set to have balanced labels, but we want the test set
@@ -96,7 +104,8 @@ train_dataset, test_dataset, train_w_minority = train_test_dataset(FILE_PATH, LA
                                                                    is_scaled=True,
                                                                    num_proxy_to_remove=NUM_PROXIES,
                                                                    balanced=balanced,
-                                                                   reweighting=MODE)
+                                                                   reweighting=MODE,
+                                                                   init=WEIGHTS_INIT)
 
 device = torch.device("cpu")
 num_predictor_features = train_dataset[0][0].shape[0]
@@ -113,7 +122,7 @@ for trial in range(NUM_TRIALS):
 
     if MODE == 2:
         args = [predictor, device, train_loader, optimizer, NUM_EPOCH, VERBOSE, 2 ** len(PROTECT_COLS),
-                2, UPDATE_LR]
+                2, UPDATE_LR, [[train_w_minority[0], 1.0], [train_w_minority[1], 1.0]]]
         func = train_sample_reweight if UPDATE == "sample" else train_cluster_reweight
     else:
         args = [predictor, device, train_loader, optimizer, NUM_EPOCH, VERBOSE,

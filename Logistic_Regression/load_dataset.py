@@ -183,7 +183,7 @@ class Dataset(data.Dataset):
 
 
 def train_test_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_remove=0,
-                       balanced=None, reweighting=0):
+                       balanced=None, reweighting=0, init=0):
 
     df = get_data(filepath)
 
@@ -212,6 +212,6 @@ def train_test_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_re
     train_dataset = Dataset(train_df, label, protect)
     test_dataset = Dataset(test_df, label, protect)
 
-    w_minority_train = reweighting_weights(train_df, label, protect) if reweighting == 1 else (1, 1)
+    w_minority_train = reweighting_weights(train_df, label, protect) if reweighting == 1 or init else (1.0, 1.0)
 
     return train_dataset, test_dataset, w_minority_train
