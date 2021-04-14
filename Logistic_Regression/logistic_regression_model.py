@@ -93,6 +93,28 @@ def cluster_weight_updates(weights, grads, accs, lr):
             in zip(weights, grads, accs)]
 
 
+def cluster_weight_updates_adaptive_lr(weights, grads, accs, exp):
+    """
+     Updates the cluster weights for the next epoch - the learning rate and direction of the update depends on the
+      cluster accuracy
+    :param weights: The current weights of the clusters
+    :param grads: The average gradient of the cluster weights from the epoch
+    :param accs: The cluster accuracy from the epoch
+    :param exp: controls the rate increase if the learning rate
+    :return: The updated cluster weights
+    """
+    for cluster_grad in grads:
+        for g in cluster_grad:
+            if g <= 0:
+                print("NEGATIVE")
+                import sys
+                sys.exit(0)
+    return [[w - ((np.average(cluster_accs) - a) * 100) ** exp * g if exp % 2 == 0 and a > np.average(
+        cluster_accs) else w + ((np.average(cluster_accs) - a) * 100) ** exp * g for w, g, a
+             in zip(cluster_weights, cluster_grads, cluster_accs)] for cluster_weights, cluster_grads, cluster_accs
+            in zip(weights, grads, accs)]
+
+
 def normalize_clusters(cluster_old_weights, cluster_new_weights, cluster_sizes):
     """
     Normalizes the new weights with respect to the size of cluster.
@@ -116,8 +138,7 @@ def normalize_samples(sample_old_weights, sample_new_weights):
     :return: The normalized sample weights
     """
     res_dict = [[{} for _ in range(len(sample_new_weights[0]))] for _ in range(len(sample_new_weights))]
-    for label, (old_weights, new_weights) in enumerate(
-            zip(sample_old_weights, sample_new_weights)):
+    for label, (old_weights, new_weights) in enumerate(zip(sample_old_weights, sample_new_weights)):
         cst_1, cst_2 = find_normalizing_cst(old_weights, new_weights)
         for cluster, new_w_dic in enumerate(new_weights):
             res_dict[label][cluster] = {k: cst_1 * w / cst_2 for k, w in new_w_dic.items()}
@@ -337,6 +358,7 @@ def train_cluster_reweight(model, device, train_loader, optimizer, epochs, verbo
         sum_loss /= len(train_loader.dataset)
         clusters_accs = [[l[0] / l[1] for l in cluster] for cluster in cluster_counts]
         cluster_grads = [[np.average(l) for l in clusters] for clusters in cluster_grads]
+
         cluster_new_weights = cluster_weight_updates(cluster_weights, cluster_grads, clusters_accs, cluster_lr)
         cluster_weights = normalize_clusters(cluster_weights, cluster_new_weights,
                                              [[total for correct, total in counts] for counts in cluster_counts])
