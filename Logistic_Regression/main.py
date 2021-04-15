@@ -16,7 +16,6 @@ except getopt.GetoptError:
     sys.exit(2)
 
 # INPUT PARAMS
-data_dir = '../Datasets/doctor_nurse/train_test_split'
 LABEL_COL, PROTECT_COLS, MODE, START_EPOCH, NUM_EPOCH, ID, NUM_TRIALS, NUM_PROXIES, FILE_PATH, VERBOSE, \
 LR_RATE, UPDATE, WEIGHTS_INIT, UPDATE_LR, BATCH_SIZE, BALANCE = "income", ["gender"], 0, 0, 40, 1, False, 0, \
                                                                 "../Datasets/adult_dataset/processed_adult.csv", 1, 0.001, \
