@@ -7,11 +7,13 @@ from torchvision import datasets, transforms
 from sklearn import preprocessing
 from sklearn.metrics import *
 from sklearn.utils import resample
+from sklearn.ensemble import IsolationForest
 import numpy as np
 from torch.utils import *
 import matplotlib.pyplot as plt
 from fairness_metrics import reweighting_weights
 import itertools
+from logistic_regression_model import *
 
 
 def get_data(filepath):
@@ -135,7 +137,7 @@ def statistics(df, label_col, protected_cols, verbose=0):
         print(stats)
         for label in df[label_col].unique():
             print("label: {}: {} samples ({:.2f}%)".format(label, len(df[df[label_col] == label]),
-                                                         len(df[df[label_col] == label])/len(df)*100))
+                                                           len(df[df[label_col] == label]) / len(df) * 100))
     return stats
 
 
@@ -167,7 +169,7 @@ class Dataset(data.Dataset):
         self.features = df.drop([label_column], axis=1).values
         self.label = df[label_column].values
         self.mapping = {element: i for i, element in enumerate(
-            itertools.product(*[list(range(len(df[col].unique()))) for col in protect_columns]))}
+            itertools.product(*[list(df[col].unique()) for col in protect_columns]))}
         self.protect = np.array(list(map(lambda a: self.mapping[tuple(a)], list(df[protect_columns].values))))
 
     def __len__(self):
@@ -184,7 +186,6 @@ class Dataset(data.Dataset):
 
 def train_test_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_remove=0,
                        balanced=None, reweighting=0, init=0):
-
     df = get_data(filepath)
 
     # Scaling the dataset
@@ -215,3 +216,77 @@ def train_test_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_re
     w_minority_train = reweighting_weights(train_df, label, protect) if reweighting == 1 or init else (1.0, 1.0)
 
     return train_dataset, test_dataset, w_minority_train
+
+
+def load_split_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_remove=0, balanced=0):
+    df = get_data(filepath)
+
+    # Scaling the dataset
+    if is_scaled:
+        df = minmax_scale(df)
+
+    # Removing proxy features
+    if num_proxy_to_remove > 0:
+        df = df_without_k_proxies(df, label, protect, num_proxy_to_remove)
+
+    df_majority = df[df[protect] == 1]
+    df_minority = df[df[protect] == 0]
+
+    train_maj_df, test_maj_df = split_train_test(df_majority)
+    train_min_df, test_min_df = split_train_test(df_minority)
+
+    if balanced:
+        train_maj_df, train_min_df = balance_df_label(train_maj_df, label, downsample=True), \
+                                     balance_df_label(train_min_df, label, downsample=True)
+        test_maj_df, test_min_df = balance_df_label(test_maj_df, label, downsample=True), \
+                                   balance_df_label(test_min_df, label, downsample=True)
+
+    # Splitting dataset into train, test features
+    print("Statistics - majority")
+    statistics(train_maj_df, label, protect, verbose=1)
+    statistics(test_maj_df, label, protect, verbose=1)
+    print("Statistics - minority")
+    statistics(train_min_df, label, protect, verbose=1)
+    statistics(test_min_df, label, protect, verbose=1)
+
+    train_maj_dataset = Dataset(train_maj_df, label, [protect])
+    test_maj_dataset = Dataset(test_maj_df, label, [protect])
+    train_min_dataset = Dataset(train_min_df, label, [protect])
+    test_min_dataset = Dataset(test_min_df, label, [protect])
+
+    return train_maj_dataset, test_maj_dataset, train_min_dataset, test_min_dataset
+
+
+def filter_outliers(df, n_estimators=100, proportion=0.1):
+    od = IsolationForest(n_estimators=n_estimators, contamination=proportion, random_state=1).fit(df)
+    od_pred = od.predict(df)
+
+    return df[od_pred == 1]
+
+
+from matplotlib.pyplot import hist, show
+
+
+def filter_low_confidence(dataset, num_features, epochs=250, lr=0.001, verbose=1, keep=0.9):
+    device = torch.device("cpu")
+    train_loader = torch.utils.data.DataLoader(dataset=dataset, batch_size=1000, shuffle=False)
+
+    predictor = Predictor(num_features).to(device)
+    optimizer = optim.Adam(predictor.parameters(), lr=lr)
+
+    train(predictor, device, train_loader, optimizer, epochs, verbose=1)
+    test_pred, _, _, probs = test(predictor, device, train_loader)
+
+    p = (1 - keep)/2
+    incorrect = [i for i in range(len(test_pred)) if test_pred[i] != dataset.label[i]]
+    indices_to_remove = list(map(lambda pair: pair[1], sorted([(probs[i], i) for i in incorrect])))[:int(p*len(dataset))] \
+                        + list(map(lambda pair: pair[1], sorted([(probs[i], i) for i in incorrect])))[-int(p*len(dataset)):]
+
+    indices_to_keep = list(set(range(len(dataset))) - set(indices_to_remove))
+
+    if verbose:
+        print("-" * 20)
+        print(f"Filter dataset from {len(dataset)} -> {len(indices_to_keep)}")
+        print("-" * 20)
+
+    return torch.utils.data.Subset(dataset, indices_to_keep)

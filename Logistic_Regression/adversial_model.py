@@ -1,4 +1,5 @@
 import tensorflow.compat.v1 as tf
+
 from load_dataset import *
 from fairness_metrics import *
 import getopt
@@ -55,6 +56,16 @@ class AdversarialLogisticModel(object):
 
         return pred_label, pred_logit
 
+    def _classifier_model_LR(self, features, features_dim, keep_prob):
+        with tf.variable_scope("classifier_model"):
+            W1 = tf.get_variable('W1', [features_dim, 1], initializer=tf.glorot_uniform_initializer())
+            b1 = tf.Variable(tf.zeros(shape=[1]), name='b1')
+
+            pred_logits = tf.matmul(features, W1) + b1
+            pred_labels = tf.sigmoid(pred_logits)
+
+        return pred_labels, pred_logits
+
     def _adversary_model(self, pred_logits, true_labels):
         """Compute the adversary predictions for the protected attribute.
         """
@@ -86,7 +97,7 @@ class AdversarialLogisticModel(object):
             self.keep_prob = tf.placeholder(tf.float32)
 
             # Obtain classifier predictions and classifier loss
-            self.pred_labels, pred_logits = self._classifier_model(self.features_ph, self.features_dim, self.keep_prob)
+            self.pred_labels, pred_logits = self._classifier_model_LR(self.features_ph, self.features_dim, self.keep_prob)
             pred_labels_loss = tf.reduce_mean(
                 tf.nn.sigmoid_cross_entropy_with_logits(labels=self.true_labels_ph, logits=pred_logits))
 
@@ -208,7 +219,7 @@ class AdversarialLogisticModel(object):
 try:
     opts, args = getopt.getopt(sys.argv[1:], "h",
                                ["label_column=", "protect_columns=", "num_epochs=", "id=",
-                                "num_proxies=", "verbose=", "balance=", "debias="])
+                                "num_proxies=", "verbose=", "balance=", "debias=", "batch_size="])
 except getopt.GetoptError:
     print("Wrong format, see -h for help ...")
     print(sys.argv)

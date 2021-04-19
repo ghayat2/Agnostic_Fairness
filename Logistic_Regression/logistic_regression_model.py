@@ -173,7 +173,6 @@ def cluster_dic_init(dataset, values, num_clusters, num_labels):
         values = [[values for _ in range(num_clusters)] for _ in range(num_labels)]
 
     dicts = [[{} for _ in range(num_clusters)] for _ in range(num_labels)]
-
     for _, labels, clusters, indexes in dataset:
         for i, label, cluster in zip(indexes, labels, clusters):
             dicts[int(label)][int(cluster)][int(i)] = values[int(label)][int(cluster)]
@@ -293,8 +292,8 @@ def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=
         history.iloc[epoch] = [sum_loss, acc]
 
         if verbose:
-            print('\nTrain set: Average loss: {:.2e}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-                sum_loss, sum_num_correct, len(train_loader.dataset),
+            print('\nEpoch {}: Train set: Average loss: {:.2e}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+                epoch, sum_loss, sum_num_correct, len(train_loader.dataset),
                 acc))
 
     return history
@@ -476,11 +475,15 @@ def test(model, device, test_loader):
     model.eval()
     test_loss, correct = 0, 0
     test_pred = torch.zeros(0, 1).to(device)
+    test_probs = torch.zeros(0, 1).to(device)
     with torch.no_grad():
-        for data, target, protect, _ in test_loader:
+        for data, target, protect, i in test_loader:
+
             data, target, protect = data.to(device, dtype=torch.float), target.to(device, dtype=torch.float), \
                                     protect.to(device, dtype=torch.float)
             logit, output = model(data)
+            test_probs = torch.cat([test_probs, output], 0)
+
             criterion = torch.nn.BCELoss()
             loss = criterion(output, target.view_as(output))
             test_loss += loss.item() * test_loader.batch_size  # sum up loss for each test sample
@@ -492,4 +495,4 @@ def test(model, device, test_loader):
     test_loss /= len(test_loader.dataset)
     test_accuracy = correct / len(test_loader.dataset)
 
-    return test_pred, test_loss, test_accuracy
+    return test_pred, test_loss, test_accuracy, test_probs

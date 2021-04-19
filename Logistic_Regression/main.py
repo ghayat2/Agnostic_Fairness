@@ -18,7 +18,7 @@ except getopt.GetoptError:
 # INPUT PARAMS
 LABEL_COL, PROTECT_COLS, MODE, START_EPOCH, NUM_EPOCH, ID, NUM_TRIALS, NUM_PROXIES, FILE_PATH, VERBOSE, \
 LR_RATE, UPDATE, WEIGHTS_INIT, UPDATE_LR, BATCH_SIZE, BALANCE = "income", ["gender"], 0, 0, 40, 1, False, 0, \
-                                                                "../Datasets/adult_dataset/processed_adult.csv", 1, 0.001, \
+                                                                    "../Datasets/adult_dataset/processed_adult.csv", 1, 0.001, \
                                                                 "cluster", 0, 10, 1000, 1
 
 for opt, arg in opts:
@@ -106,6 +106,11 @@ train_dataset, test_dataset, train_w_minority = train_test_dataset(FILE_PATH, LA
                                                                    reweighting=MODE,
                                                                    init=WEIGHTS_INIT)
 
+print("---------- MAPPING ----------")
+print("Train: ", train_dataset.mapping)
+print("Test: ", test_dataset.mapping)
+print("-----------------------------")
+
 device = torch.device("cpu")
 num_predictor_features = train_dataset[0][0].shape[0]
 # Data loaders
@@ -121,20 +126,19 @@ for trial in range(NUM_TRIALS):
 
     if MODE == 2:
         args = [predictor, device, train_loader, optimizer, NUM_EPOCH, VERBOSE, 2 ** len(PROTECT_COLS),
-                2, UPDATE_LR, [[train_w_minority[0], 1.0], [train_w_minority[1], 1.0]]]
+                2, UPDATE_LR, [[train_w_minority[0], 1.0], [train_w_minority[1], 1.0]] if WEIGHTS_INIT else None]
         func = train_sample_reweight if UPDATE == "sample" else train_cluster_reweight
     else:
         args = [predictor, device, train_loader, optimizer, NUM_EPOCH, VERBOSE,
                 train_w_minority if MODE == 1 else None]
         func = train
-
     train_history = func(*args)
 
     # print(train_history[[c for c in train_history.columns if "cluster" in c]])
 
     ###### Test set
-    train_pred_labels, train_loss, train_accuracy = test(predictor, device, train_loader)
-    test_pred_labels, test_loss, test_accuracy = test(predictor, device, test_loader)
+    train_pred_labels, train_loss, train_accuracy, _ = test(predictor, device, train_loader)
+    test_pred_labels, test_loss, test_accuracy, _ = test(predictor, device, test_loader)
 
     train_accuracies.append(train_accuracy)
     test_accuracies.append(test_accuracy)
@@ -169,6 +173,7 @@ print(f"Fairness accuracy: \n {fairness_diffs}")
 if ID >= 0:
     PATH = f"Case_{MODE + 1}/checkpoints/model_ep_{START_EPOCH + NUM_EPOCH}/Run_{ID}/stats.txt"
     file = open(PATH, "w")
+    file.write(f"Mapping: {test_dataset.mapping} \n")
     file.write(f"Training accuracy: {train_accuracies.mean():3f} += {train_accuracies.std():3f} \n")
     file.write(f"Test accuracy: {test_accuracies.mean():3f} += {test_accuracies.std():3f} \n")
     file.write(f"Fairness accuracy: \n {np.mean(fairness_accs, axis=0)} \n += \n {np.std(fairness_accs, axis=0)}")
