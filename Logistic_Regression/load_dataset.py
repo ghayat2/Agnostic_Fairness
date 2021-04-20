@@ -264,10 +264,7 @@ def filter_outliers(df, n_estimators=100, proportion=0.1):
     return df[od_pred == 1]
 
 
-from matplotlib.pyplot import hist, show
-
-
-def filter_low_confidence(dataset, num_features, epochs=250, lr=0.001, verbose=1, keep=0.9):
+def filter(dataset, num_features, improve, epochs=40, lr=0.001, verbose=1, keep=0.9):
     device = torch.device("cpu")
     train_loader = torch.utils.data.DataLoader(dataset=dataset, batch_size=1000, shuffle=False)
 
@@ -277,10 +274,17 @@ def filter_low_confidence(dataset, num_features, epochs=250, lr=0.001, verbose=1
     train(predictor, device, train_loader, optimizer, epochs, verbose=1)
     test_pred, _, _, probs = test(predictor, device, train_loader)
 
-    p = (1 - keep)/2
-    incorrect = [i for i in range(len(test_pred)) if test_pred[i] != dataset.label[i]]
-    indices_to_remove = list(map(lambda pair: pair[1], sorted([(probs[i], i) for i in incorrect])))[:int(p*len(dataset))] \
-                        + list(map(lambda pair: pair[1], sorted([(probs[i], i) for i in incorrect])))[-int(p*len(dataset)):]
+    p = (1 - keep) / 2
+
+    set_1 = [i for i in range(len(test_pred)) if not test_pred[i] and dataset.label[i]] if improve else \
+                [i for i in range(len(test_pred)) if not test_pred[i] and not dataset.label[i]]
+    set_2 = [i for i in range(len(test_pred)) if test_pred[i] and not dataset.label[i]] if improve else \
+                [i for i in range(len(test_pred)) if test_pred[i] and dataset.label[i]]
+
+    indices_to_remove = list(map(lambda pair: pair[1], sorted([(probs[i], i) for i in set_1]))) \
+                            [:int(p * len(dataset))] \
+                        + list(map(lambda pair: pair[1], sorted([(probs[i], i) for i in set_2]))) \
+                            [-int(p * len(dataset)):]
 
     indices_to_keep = list(set(range(len(dataset))) - set(indices_to_remove))
 

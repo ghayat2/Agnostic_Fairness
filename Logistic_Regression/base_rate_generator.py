@@ -75,7 +75,8 @@ train_maj_dataset, test_maj_dataset, train_min_dataset, test_min_dataset = load_
 device = torch.device("cpu")
 num_predictor_features = train_maj_dataset[0][0].shape[0]
 
-# train_min_dataset = filter_low_confidence(train_min_dataset, num_predictor_features)
+train_maj_dataset = filter(train_maj_dataset, num_predictor_features, improve=False, epochs=NUM_EPOCH, keep=0.8)
+train_min_dataset = filter(train_min_dataset, num_predictor_features, improve=True, epochs=NUM_EPOCH, keep=0.9)
 
 # Data loaders
 train_maj_loader = torch.utils.data.DataLoader(dataset=train_maj_dataset, batch_size=BATCH_SIZE, shuffle=True)
