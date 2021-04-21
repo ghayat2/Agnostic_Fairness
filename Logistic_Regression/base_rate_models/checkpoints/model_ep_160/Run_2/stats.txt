@@ -1,0 +1,26 @@
+Majority test accuracy:
+ [[0.692]
+ [0.799]] 
++= 
+ [[0.]
+ [0.]] 
+Minority test accuracy:
+ [[0.865]
+ [0.991]] 
++= 
+ [[0.]
+ [0.]] 
+Fairness accuracy: 
+ [[0.707 0.793]
+ [0.793 1.   ]] 
+ += 
+ [[0. 0.]
+ [0. 0.]]
+Base rate difference: 
+ [[-0.173]
+ [-0.192]] 
++=
+ [[0.]
+ [0.]]
+Fairness difference: 
+ [[0.086 0.207]]

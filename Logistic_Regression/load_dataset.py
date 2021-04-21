@@ -171,6 +171,7 @@ class Dataset(data.Dataset):
         self.mapping = {element: i for i, element in enumerate(
             itertools.product(*[list(df[col].unique()) for col in protect_columns]))}
         self.protect = np.array(list(map(lambda a: self.mapping[tuple(a)], list(df[protect_columns].values))))
+        print(self.mapping)
 
     def __len__(self):
         'Denotes the total number of samples'
@@ -218,7 +219,7 @@ def train_test_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_re
     return train_dataset, test_dataset, w_minority_train
 
 
-def load_split_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_remove=0, balanced=0):
+def load_split_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_remove=0, balanced=0, keep=1, verbose=0):
     df = get_data(filepath)
 
     # Scaling the dataset
@@ -232,6 +233,10 @@ def load_split_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_re
     df_majority = df[df[protect] == 1]
     df_minority = df[df[protect] == 0]
 
+    if keep < 1:
+        df_majority = filter(df_majority, label, protect, improve=False, epochs=100, verbose=verbose, keep=keep)
+        df_minority = filter(df_minority, label, protect, improve=True, epochs=100, verbose=verbose, keep=keep)
+
     train_maj_df, test_maj_df = split_train_test(df_majority)
     train_min_df, test_min_df = split_train_test(df_minority)
 
@@ -243,18 +248,21 @@ def load_split_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_re
 
     # Splitting dataset into train, test features
     print("Statistics - majority")
-    statistics(train_maj_df, label, protect, verbose=1)
-    statistics(test_maj_df, label, protect, verbose=1)
+    statistics(train_maj_df, label, protect, verbose=verbose)
+    statistics(test_maj_df, label, protect, verbose=verbose)
     print("Statistics - minority")
-    statistics(train_min_df, label, protect, verbose=1)
-    statistics(test_min_df, label, protect, verbose=1)
+    statistics(train_min_df, label, protect, verbose=verbose)
+    statistics(test_min_df, label, protect, verbose=verbose)
 
     train_maj_dataset = Dataset(train_maj_df, label, [protect])
-    test_maj_dataset = Dataset(test_maj_df, label, [protect])
     train_min_dataset = Dataset(train_min_df, label, [protect])
-    test_min_dataset = Dataset(test_min_df, label, [protect])
+    train_dataset = Dataset(pd.concat([train_maj_df, train_min_df]), label, [protect])
 
-    return train_maj_dataset, test_maj_dataset, train_min_dataset, test_min_dataset
+    test_maj_dataset = Dataset(test_maj_df, label, [protect])
+    test_min_dataset = Dataset(test_min_df, label, [protect])
+    test_dataset = Dataset(pd.concat([test_maj_df, test_min_df]), label, [protect])
+
+    return train_maj_dataset, train_min_dataset, train_dataset, test_maj_dataset, test_min_dataset, test_dataset
 
 
 def filter_outliers(df, n_estimators=100, proportion=0.1):
@@ -264,10 +272,12 @@ def filter_outliers(df, n_estimators=100, proportion=0.1):
     return df[od_pred == 1]
 
 
-def filter(dataset, num_features, improve, epochs=40, lr=0.001, verbose=1, keep=0.9):
+def filter(df, label, protect, improve, epochs=40, lr=0.001, verbose=1, keep=0.9):
     device = torch.device("cpu")
+    dataset = Dataset(df, label, [protect])
     train_loader = torch.utils.data.DataLoader(dataset=dataset, batch_size=1000, shuffle=False)
 
+    num_features = dataset[0][0].shape[0]
     predictor = Predictor(num_features).to(device)
     optimizer = optim.Adam(predictor.parameters(), lr=lr)
 
@@ -277,9 +287,9 @@ def filter(dataset, num_features, improve, epochs=40, lr=0.001, verbose=1, keep=
     p = (1 - keep) / 2
 
     set_1 = [i for i in range(len(test_pred)) if not test_pred[i] and dataset.label[i]] if improve else \
-                [i for i in range(len(test_pred)) if not test_pred[i] and not dataset.label[i]]
+        [i for i in range(len(test_pred)) if not test_pred[i] and not dataset.label[i]]
     set_2 = [i for i in range(len(test_pred)) if test_pred[i] and not dataset.label[i]] if improve else \
-                [i for i in range(len(test_pred)) if test_pred[i] and dataset.label[i]]
+        [i for i in range(len(test_pred)) if test_pred[i] and dataset.label[i]]
 
     indices_to_remove = list(map(lambda pair: pair[1], sorted([(probs[i], i) for i in set_1]))) \
                             [:int(p * len(dataset))] \
@@ -293,4 +303,4 @@ def filter(dataset, num_features, improve, epochs=40, lr=0.001, verbose=1, keep=
         print(f"Filter dataset from {len(dataset)} -> {len(indices_to_keep)}")
         print("-" * 20)
 
-    return torch.utils.data.Subset(dataset, indices_to_keep)
+    return df.iloc[indices_to_keep]

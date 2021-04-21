@@ -168,7 +168,7 @@ fairness_accs = np.array(fairness_accs)
 print(f"Training accuracy: {train_accuracies.mean():3f} += {train_accuracies.std():3f}")
 print(f"Test accuracy: {test_accuracies.mean():3f} += {test_accuracies.std():3f}")
 print(f"Fairness accuracy: \n {np.mean(fairness_accs, axis=0)} += {np.std(fairness_accs, axis=0)}")
-print(f"Fairness accuracy: \n {fairness_diffs}")
+print(f"Fairness diffs: \n {fairness_diffs}")
 
 if ID >= 0:
     PATH = f"Case_{MODE + 1}/checkpoints/model_ep_{START_EPOCH + NUM_EPOCH}/Run_{ID}/stats.txt"
@@ -177,5 +177,5 @@ if ID >= 0:
     file.write(f"Training accuracy: {train_accuracies.mean():3f} += {train_accuracies.std():3f} \n")
     file.write(f"Test accuracy: {test_accuracies.mean():3f} += {test_accuracies.std():3f} \n")
     file.write(f"Fairness accuracy: \n {np.mean(fairness_accs, axis=0)} \n += \n {np.std(fairness_accs, axis=0)}")
-    file.write(f"Fairness accuracy: \n {fairness_diffs}")
+    file.write(f"Fairness difference: \n {fairness_diffs}")
     file.close()
