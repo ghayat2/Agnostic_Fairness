@@ -219,7 +219,8 @@ def train_test_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_re
     return train_dataset, test_dataset, w_minority_train
 
 
-def load_split_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_remove=0, balanced=0, keep=1, verbose=0):
+def load_split_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_remove=0, balanced=0, keep=1, verbose=0,
+                       filters=None):
     df = get_data(filepath)
 
     # Scaling the dataset
@@ -234,8 +235,10 @@ def load_split_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_re
     df_minority = df[df[protect] == 0]
 
     if keep < 1:
-        df_majority = filter(df_majority, label, protect, improve=False, epochs=100, verbose=verbose, keep=keep)
-        df_minority = filter(df_minority, label, protect, improve=True, epochs=100, verbose=verbose, keep=keep)
+        if filters[0]:
+            df_majority = filter(df_majority, label, protect, improve=filters[0] == 1, epochs=100, verbose=verbose, keep=keep)
+        if filters[1]:
+            df_minority = filter(df_minority, label, protect, improve=filters[1] == 1, epochs=100, verbose=verbose, keep=keep)
 
     train_maj_df, test_maj_df = split_train_test(df_majority)
     train_min_df, test_min_df = split_train_test(df_minority)

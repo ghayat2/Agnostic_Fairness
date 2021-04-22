@@ -9,7 +9,7 @@ try:
     opts, args = getopt.getopt(sys.argv[1:], "h",
                                ["label_column=", "protect_columns=", "num_epochs=", "id=",
                                 "num_trials=", "num_proxies=", "verbose=", "lr=",
-                                "batch_size=", "balance=", "keep="])
+                                "batch_size=", "balance=", "keep=", "filter_maj=", "filter_min="])
 except getopt.GetoptError:
     print("Wrong format, see -h for help ...")
     print(sys.argv)
@@ -17,9 +17,9 @@ except getopt.GetoptError:
 
 # INPUT PARAMS
 LABEL_COL, PROTECT_COLS, NUM_EPOCH, ID, NUM_TRIALS, NUM_PROXIES, FILE_PATH, VERBOSE, \
-LR_RATE, BATCH_SIZE, BALANCE, KEEP = "income", [
+LR_RATE, BATCH_SIZE, BALANCE, KEEP, FILTER_MAJ, FILTER_MIN = "income", [
     "gender"], 40, -1, 1, 0, "../Datasets/adult_dataset/processed_adult.csv", 1, 0.001, \
-                                     1000, 0, 1
+                                     1000, 0, 1, 0, 0
 
 for opt, arg in opts:
     if opt == '-h':
@@ -34,7 +34,11 @@ for opt, arg in opts:
             "--balance=<balance>\n"
             "Same number of samples in each class if arg is set to 1"
             "--keep=<keep> \n"
-            "The proportion of the keep when filtering the majority and minority sets (must be ]0,1])")
+            "The proportion of the keep when filtering the majority and minority sets (must be ]0,1])"
+            "--filter_maj<filter_maj> --filter_min<filter_min>"
+            "1: filters the group to improve model predictions"
+            "0: does not filter the group"
+            "-1: filters the group to worsen model predictions")
         sys.exit()
     if opt == '--label_column':
         LABEL_COL = int(arg)
@@ -60,8 +64,12 @@ for opt, arg in opts:
         BALANCE = int(arg)
     if opt == '--keep':
         KEEP = float(arg)
+    if opt == '--filter_maj':
+        FILTER_MAJ = int(arg)
+    if opt == '--filter_min':
+        FILTER_MIN = int(arg)
 
-if len(PROTECT_COLS) >= 2 or not (0 < KEEP <= 1):
+if len(PROTECT_COLS) >= 2 or not (0 < KEEP <= 1) or FILTER_MAJ not in [-1, 0, 1] or FILTER_MIN not in [-1, 0, 1]:
     print("Arguments not valid: see flag -h for more information")
     sys.exit(1)
 
@@ -69,7 +77,7 @@ print(
     f"RUNNING SCRIPT WITH ARGUMENTS : -label_column={LABEL_COL} -protect_columns={PROTECT_COLS}"
     f"-num_epoch={NUM_EPOCH} -id={ID} -num_trials={NUM_TRIALS} -num_proxies={NUM_PROXIES}"
     f"-file_path={FILE_PATH} -verbose={VERBOSE} -lr={LR_RATE}"
-    f"-batch_size={BATCH_SIZE} -balance={BALANCE} -keep={KEEP}")
+    f"-batch_size={BATCH_SIZE} -balance={BALANCE} -keep={KEEP} -filter_maj={FILTER_MAJ} -filter_min={FILTER_MIN}")
 
 train_test_datasets = load_split_dataset(FILE_PATH, LABEL_COL,
                                          PROTECT_COLS[0],
@@ -77,7 +85,8 @@ train_test_datasets = load_split_dataset(FILE_PATH, LABEL_COL,
                                          num_proxy_to_remove=NUM_PROXIES,
                                          balanced=BALANCE,
                                          keep=KEEP,
-                                         verbose=VERBOSE)
+                                         verbose=VERBOSE,
+                                         filters = [FILTER_MAJ, FILTER_MIN])
 
 tr_maj_d, tr_min_d, tr_d, te_maj_d, te_min_d, te_d = train_test_datasets
 
