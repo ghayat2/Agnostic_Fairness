@@ -19,6 +19,25 @@ class Predictor(nn.Module):
         y_pred = F.sigmoid(y_logits)
         return y_logits, y_pred
 
+    def weights(self):
+        return self.linear.weight
+
+
+def feature_importance(predictor, features, k=0):
+    """
+    This returns the model weight associated to each feature in logistic regression
+    :param predictor: logistic regression model
+    :param features: the features
+    :param k: the number of most influencial features to return (top and bottom)
+    :return: the top 2k features of the model
+    """
+    weights = predictor.weights().detach().numpy().reshape(-1)
+    sorted_index, dim = np.argsort(weights).reshape(-1), len(features) / 2 if not k or k > len(features) / 2 else \
+        k
+    return pd.DataFrame(data=np.concatenate([weights[sorted_index][:dim], weights[sorted_index][-dim:]]),
+                        index=list(np.concatenate([features[sorted_index][:dim], features[sorted_index][-dim:]])),
+                        columns=["Score"])
+
 
 def cluster_counts_update(counts, preds, targets, clusters):
     """
@@ -478,7 +497,6 @@ def test(model, device, test_loader):
     test_probs = torch.zeros(0, 1).to(device)
     with torch.no_grad():
         for data, target, protect, i in test_loader:
-
             data, target, protect = data.to(device, dtype=torch.float), target.to(device, dtype=torch.float), \
                                     protect.to(device, dtype=torch.float)
             logit, output = model(data)
