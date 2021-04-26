@@ -32,7 +32,7 @@ def feature_importance(predictor, features, k=0):
     :return: the top 2k features of the model
     """
     weights = predictor.weights().detach().numpy().reshape(-1)
-    sorted_index, dim = np.argsort(weights).reshape(-1), len(features) / 2 if not k or k > len(features) / 2 else \
+    sorted_index, dim = np.argsort(weights).reshape(-1), int(len(features) / 2) if not k or k > len(features) / 2 else \
         k
     return pd.DataFrame(data=np.concatenate([weights[sorted_index][:dim], weights[sorted_index][-dim:]]),
                         index=list(np.concatenate([features[sorted_index][:dim], features[sorted_index][-dim:]])),
