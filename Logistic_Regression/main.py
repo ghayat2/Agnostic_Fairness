@@ -17,9 +17,9 @@ except getopt.GetoptError:
 
 # INPUT PARAMS
 LABEL_COL, PROTECT_COLS, MODE, START_EPOCH, NUM_EPOCH, ID, NUM_TRIALS, NUM_PROXIES, FILE_PATH, VERBOSE, \
-LR_RATE, UPDATE, WEIGHTS_INIT, UPDATE_LR, BATCH_SIZE, BALANCE = "income", ["gender"], 0, 0, 40, 1, False, 0, \
-                                                                    "../Datasets/adult_dataset/processed_adult.csv", 1, 0.001, \
-                                                                "cluster", 0, 10, 1000, 1
+LR_RATE, UPDATE, WEIGHTS_INIT, UPDATE_LR, BATCH_SIZE, BALANCE = "income", ["gender"], 0, 0, 40, -1, 1, 0, \
+                                                                "../Datasets/adult_dataset/processed_adult.csv", 1, \
+                                                                0.001, "cluster", 0, 10, 1000, 1
 
 for opt, arg in opts:
     if opt == '-h':
@@ -99,6 +99,8 @@ In order to test Case_1 and Case_2, we want the train and test set to have balan
  to also be balanced in terms of the sensitive attribute, while the train set should be bias.
 """
 balanced = {"train_label_only": True, "test_label_only": False, "downsample": True} if BALANCE else None
+PROTECT_VALUE = (0.0,) # Hard coded, corresponds to female for gender as a sensitive attribute and non-white for race as
+                       # a sensitive attribute
 train_dataset, test_dataset, train_w_minority = train_test_dataset(FILE_PATH, LABEL_COL, PROTECT_COLS,
                                                                    is_scaled=True,
                                                                    num_proxy_to_remove=NUM_PROXIES,
@@ -125,12 +127,16 @@ for trial in range(NUM_TRIALS):
     optimizer = optim.Adam(predictor.parameters(), lr=LR_RATE)
 
     if MODE == 2:
+        weights = [[1.0 for _ in range(len(2 ** len(PROTECT_COLS)))] for _ in range(2)]
+        weights[0][train_dataset.mapping[PROTECT_VALUE]] = train_w_minority[0]
+        weights[1][train_dataset.mapping[PROTECT_VALUE]] = train_w_minority[1]
+
         args = [predictor, device, train_loader, optimizer, NUM_EPOCH, VERBOSE, 2 ** len(PROTECT_COLS),
-                2, UPDATE_LR, [[train_w_minority[0], 1.0], [train_w_minority[1], 1.0]] if WEIGHTS_INIT else None]
+                2, UPDATE_LR, weights if WEIGHTS_INIT else None]
         func = train_sample_reweight if UPDATE == "sample" else train_cluster_reweight
     else:
         args = [predictor, device, train_loader, optimizer, NUM_EPOCH, VERBOSE,
-                train_w_minority if MODE == 1 else None]
+                train_w_minority if MODE == 1 else None, train_dataset.mapping[PROTECT_VALUE]]
         func = train
     train_history = func(*args)
 

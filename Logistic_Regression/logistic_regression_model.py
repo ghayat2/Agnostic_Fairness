@@ -262,10 +262,11 @@ def sample_weight_updates(dataset, sample_weights, sample_grads, correct_classif
     return new_dict, updates
 
 
-def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=None):
+def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=None, protected_value=1):
     """
     Trains the model in MODE 0 or 1. When MODE is 1, a minority weight is given for each class and applied to samples
     belonging to thr minority group. If MODE is 0, no weights is applied to the dataset.
+    :param protected_value:
     :param model: the model
     :param device: the device on which the model is trained
     :param train_loader: the training set
@@ -273,6 +274,7 @@ def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=
     :param epochs: the number of epochs
     :param verbose: print tracking notifications while training
     :param minority_w: the minority weights to apply the the minority group. If None, then MODE is 0, else MODE is 1
+    :param protected_value: The unprivileged value of the protected column
     :return: the performance history of the model during the training process
     """
     model.train()
@@ -290,9 +292,10 @@ def train(model, device, train_loader, optimizer, epochs, verbose=1, minority_w=
             logits, output = model(data)
 
             weights = torch.tensor(
-                [minority_w[0] if not target[i] and not protect[i] else 1 for i in range(len(data))]).type(torch.float) \
+                [minority_w[0] if not target[i] and protect[i] == protected_value else 1 for i in
+                 range(len(data))]).type(torch.float) \
                       * torch.tensor(
-                [minority_w[1] if target[i] and not protect[i] else 1 for i in range(len(data))]).type(
+                [minority_w[1] if target[i] and protect[i] == protected_value else 1 for i in range(len(data))]).type(
                 torch.float) if minority_w else None
 
             criterion = torch.nn.BCELoss(weight=weights)

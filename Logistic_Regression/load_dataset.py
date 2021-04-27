@@ -171,7 +171,6 @@ class Dataset(data.Dataset):
         self.mapping = {element: i for i, element in enumerate(
             itertools.product(*[list(df[col].unique()) for col in protect_columns]))}
         self.protect = np.array(list(map(lambda a: self.mapping[tuple(a)], list(df[protect_columns].values))))
-        print(self.mapping)
 
     def __len__(self):
         'Denotes the total number of samples'
