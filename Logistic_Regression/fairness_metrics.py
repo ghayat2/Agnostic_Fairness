@@ -3,7 +3,7 @@ import numpy as np
 from logistic_regression_model import test
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-import matplotlib.lines as mlines
+from scipy.stats import norm
 
 
 def binary_confusion_matrix(true_labels, pred_labels, protect, protect_group):
@@ -130,31 +130,43 @@ def scatter_plots(device, predictor_maj, predictor_min, predictor_comb, test_maj
     comb_maj_pred, comb_maj_probs = comb_pred[:len(test_maj_loader.dataset)], comb_probs[:len(test_maj_loader.dataset)]
     comb_min_pred, comb_min_probs = comb_pred[len(test_maj_loader.dataset):], comb_probs[len(test_maj_loader.dataset):]
 
-    s1_maj, s2_maj = maj_probs[np.logical_and(maj_pred == test_maj_loader.dataset.label,
-                                              comb_maj_pred == test_maj_loader.dataset.label)], \
-                     maj_probs[np.logical_and(maj_pred == test_maj_loader.dataset.label,
-                                              comb_maj_pred != test_maj_loader.dataset.label)]
+    s1_maj, s2_maj, s3_maj = maj_probs[np.logical_and(maj_pred == test_maj_loader.dataset.label,
+                                                      comb_maj_pred == test_maj_loader.dataset.label)], \
+                             maj_probs[np.logical_and(maj_pred == test_maj_loader.dataset.label,
+                                                      comb_maj_pred != test_maj_loader.dataset.label)], \
+                             maj_probs[np.logical_and(maj_pred != test_maj_loader.dataset.label,
+                                                      comb_maj_pred == test_maj_loader.dataset.label)]
 
-    s1_min, s2_min = min_probs[np.logical_and(min_pred == test_min_loader.dataset.label,
-                                              comb_min_pred == test_min_loader.dataset.label)], \
-                     min_probs[np.logical_and(min_pred == test_min_loader.dataset.label,
-                                              comb_min_pred != test_min_loader.dataset.label)]
+    s1_min, s2_min, s3_min = min_probs[np.logical_and(min_pred == test_min_loader.dataset.label,
+                                                      comb_min_pred == test_min_loader.dataset.label)], \
+                             min_probs[np.logical_and(min_pred == test_min_loader.dataset.label,
+                                                      comb_min_pred != test_min_loader.dataset.label)], \
+                             min_probs[np.logical_and(min_pred != test_min_loader.dataset.label,
+                                                      comb_min_pred == test_min_loader.dataset.label)]
 
     X = list(s1_maj) + list(s2_maj) + list(s1_min) + list(s2_min)
-    Y = [1] * (len(s1_maj) + len(s2_maj)) + [0] * (len(s1_min) + len(s2_min))
+    Y = [0.25] * (len(s1_maj) + len(s2_maj)) + [-0.25] * (len(s1_min) + len(s2_min))
     C = ["Green"] * len(s1_maj) + ["Red"] * len(s2_maj) + ["Green"] * len(s1_min) + ["Red"] * len(s2_min)
 
     plt.figure(1, figsize=(18, 12))
-    plt.title("Accuracy of the model among the base models' correctly classified samples ")
-    plt.xlabel("Base models' correctly classified samples (ie: Pr(Y=1 | X), threshold at 0.5)")
-    plt.ylabel("1-Majority, 0-Minority")
+    plt.title("Accuracy of base models vs model")
+    plt.xlabel("Base models' classification accuracies (ie: Pr(Y=1 | X), threshold at 0.5)")
+    plt.ylabel("Minority ----- Majority")
+    green_patch = mpatches.Patch(color='green', label='corr. class. base model, corr. class. model')
+    red_patch = mpatches.Patch(color='red', label='corr. class. base model, incorr. class. model')
+    blue_patch = mpatches.Patch(color='blue', label='incorr. class. base model, corr. class. model')
+    boundary, = plt.plot([0.5, 0.5], [-0.5, 0.5], label="Decision boundary", linestyle='--', color="y")
+    plt.legend(handles=[green_patch, red_patch, blue_patch, boundary], loc="upper right")
+
     axes = plt.gca()
-    axes.set_ylim([-1, 2])
-    # dotted_line = plt.plot([0.5, 0.5], label="Decision boundary")
-    boundary, = plt.plot([0.5, 0.5], [-1, 2], label="Decision boundary", linestyle='--', color="y")
+    axes.set_ylim([-0.5, 0.5])
+    axes.hist(s3_maj, weights=[1/len(s3_maj)]*len(s3_maj), bins=int(len(s3_maj)/4), color="Blue", alpha=0.7)
+    axes.get_yaxis().set_ticks([])
 
-    green_patch = mpatches.Patch(color='green', label='Correctly classified by model')
-    red_patch = mpatches.Patch(color='red', label='Wrongly classified by model')
-    plt.legend(handles=[green_patch, red_patch, boundary], loc="upper right")
+    axes2 = axes.twinx()
+    axes2.set_ylim([-0.5, 0.5])
+    axes2.invert_yaxis()
+    axes2.hist(s3_min, weights=[1 / len(s3_min)] * len(s3_min), bins=int(len(s3_min)/2), color="darkblue", alpha=0.7)
+    axes2.get_yaxis().set_ticks([])
 
-    return plt.scatter(X, Y, s=5, c=C)
+    return axes.scatter(X, Y, s=5, c=C)

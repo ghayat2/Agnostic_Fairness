@@ -289,6 +289,11 @@ train_dataset, test_dataset, _ = train_test_dataset(FILE_PATH,
 train_features, train_labels, train_protect = train_dataset.features, train_dataset.label, train_dataset.protect
 test_features, test_labels, test_protect = test_dataset.features, test_dataset.label, test_dataset.protect
 
+print("---------- MAPPING ----------")
+print("Train: ", train_dataset.mapping)
+print("Test: ", test_dataset.mapping)
+print("-----------------------------")
+
 hyperparameters = {'adversary_loss_weight': 0.1,
                    'batch_size': BATCH_SIZE,
                    'num_epochs': NUM_EPOCH,
@@ -312,6 +317,7 @@ train_accuracies = np.array(train_accuracies)
 test_accuracies = np.array(test_accuracies)
 fairness_accs = np.array(fairness_accs)
 
+print(f"Mapping: {test_dataset.mapping} \n")
 print(f"Training accuracy: {train_accuracies.mean():3f} += {train_accuracies.std():3f}")
 print(f"Test accuracy: {test_accuracies.mean():3f} += {test_accuracies.std():3f}")
 print(f"Fairness accuracy: \n {np.mean(fairness_accs, axis=0)} += {np.std(fairness_accs, axis=0)}")
@@ -321,6 +327,7 @@ if ID >= 0:
     PATH = f"adversarial/checkpoints/model_ep_{NUM_EPOCH}/Debias_{DEBIAS}/Run_{ID}/stats.txt"
     os.makedirs(PATH, exist_ok=True)
     file = open(PATH + "/stats.txt", "w")
+    file.write(f"Mapping: {test_dataset.mapping} \n")
     file.write(f"Training accuracy: {train_accuracies.mean():3f} += {train_accuracies.std():3f} \n")
     file.write(f"Test accuracy: {test_accuracies.mean():3f} += {test_accuracies.std():3f} \n")
     file.write(f"Fairness accuracy: \n {np.mean(fairness_accs, axis=0)} \n += \n {np.std(fairness_accs, axis=0)}")

@@ -108,6 +108,7 @@ train_dataset, test_dataset, train_w_minority = train_test_dataset(FILE_PATH, LA
                                                                    reweighting=MODE,
                                                                    init=WEIGHTS_INIT)
 
+print(f"Using weights {train_w_minority}")
 print("---------- MAPPING ----------")
 print("Train: ", train_dataset.mapping)
 print("Test: ", test_dataset.mapping)
@@ -127,7 +128,7 @@ for trial in range(NUM_TRIALS):
     optimizer = optim.Adam(predictor.parameters(), lr=LR_RATE)
 
     if MODE == 2:
-        weights = [[1.0 for _ in range(len(2 ** len(PROTECT_COLS)))] for _ in range(2)]
+        weights = [[1.0 for _ in range(2 ** len(PROTECT_COLS))] for _ in range(2)]
         weights[0][train_dataset.mapping[PROTECT_VALUE]] = train_w_minority[0]
         weights[1][train_dataset.mapping[PROTECT_VALUE]] = train_w_minority[1]
 
@@ -171,6 +172,7 @@ train_accuracies = np.array(train_accuracies)
 test_accuracies = np.array(test_accuracies)
 fairness_accs = np.array(fairness_accs)
 
+print(f"Mapping: {test_dataset.mapping} \n")
 print(f"Training accuracy: {train_accuracies.mean():3f} += {train_accuracies.std():3f}")
 print(f"Test accuracy: {test_accuracies.mean():3f} += {test_accuracies.std():3f}")
 print(f"Fairness accuracy: \n {np.mean(fairness_accs, axis=0)} += {np.std(fairness_accs, axis=0)}")
