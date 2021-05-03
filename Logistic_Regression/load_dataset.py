@@ -163,7 +163,13 @@ def statistics_(df, label_col, protected_cols, verbose=0):
 class Dataset(data.Dataset):
     'Characterizes a dataset for PyTorch'
 
-    def __init__(self, df, label_column, protect_columns):
+    def __init__(self, arg_1, arg_2, arg_3):
+        if isinstance(arg_1, pd.DataFrame):
+            self.constructor_1(arg_1, arg_2, arg_3)
+        else:
+            self.constructor_2(arg_1, arg_2, arg_3)
+
+    def constructor_1(self, df, label_column, protect_columns):
         'Initialization'
         # self.features = df.drop([label_column, protect_column], axis=1).values ## Fairness through unawarness
         self.features = df.drop([label_column], axis=1).values
@@ -171,6 +177,11 @@ class Dataset(data.Dataset):
         self.mapping = {element: i for i, element in enumerate(
             itertools.product(*[list(df[col].unique()) for col in protect_columns]))}
         self.protect = np.array(list(map(lambda a: self.mapping[tuple(a)], list(df[protect_columns].values))))
+
+    def constructor_2(self, features, labels, protect):
+        self.features = features
+        self.label = labels
+        self.protect = protect
 
     def __len__(self):
         'Denotes the total number of samples'
@@ -183,9 +194,12 @@ class Dataset(data.Dataset):
         z = self.protect[index]
         return X, y, z, index
 
+    def copy(self):
+        return Dataset(self.features.copy(), self.label.copy(), self.protect.copy())
+
 
 def train_test_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_remove=0,
-                       balanced=None, reweighting=0, init=0):
+                       balanced=None, reweighting=0, init=0, split=0.75):
     df = get_data(filepath)
 
     # Scaling the dataset
@@ -196,7 +210,7 @@ def train_test_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_re
     if num_proxy_to_remove > 0:
         df = df_without_k_proxies(df, label, protect, num_proxy_to_remove)
 
-    train_df, test_df = split_train_test(df)
+    train_df, test_df = split_train_test(df, train=split)
 
     # Balancing the dataset
     if balanced is not None:
@@ -235,9 +249,11 @@ def load_split_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_re
 
     if keep < 1:
         if filters[0]:
-            df_majority = filter(df_majority, label, protect, improve=filters[0] == 1, epochs=100, verbose=verbose, keep=keep)
+            df_majority = filter(df_majority, label, protect, improve=filters[0] == 1, epochs=100, verbose=verbose,
+                                 keep=keep)
         if filters[1]:
-            df_minority = filter(df_minority, label, protect, improve=filters[1] == 1, epochs=100, verbose=verbose, keep=keep)
+            df_minority = filter(df_minority, label, protect, improve=filters[1] == 1, epochs=100, verbose=verbose,
+                                 keep=keep)
 
     train_maj_df, test_maj_df = split_train_test(df_majority)
     train_min_df, test_min_df = split_train_test(df_minority)
