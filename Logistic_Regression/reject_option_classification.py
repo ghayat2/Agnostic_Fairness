@@ -1,5 +1,5 @@
 """
-Code taken from: 
+Code taken from:
 https://github.com/Trusted-AI/AIF360/blob/master/aif360/algorithms/postprocessing/reject_option_classification.py
 """
 
