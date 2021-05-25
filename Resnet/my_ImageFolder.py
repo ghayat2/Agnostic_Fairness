@@ -10,3 +10,15 @@ class my_ImageFolder(datasets.ImageFolder):
     def __getitem__(self, index: int):
         w = self.w_protected if self.samples[index][0].split("/")[-1] in self.protected_group else 1
         return super().__getitem__(index), w
+
+
+class my_ImageFolderCluster(datasets.ImageFolder):
+    def __init__(self, root, transform, clusters):
+        super().__init__(root, transform)
+        self.clusters = clusters
+
+    def __getitem__(self, index: int):
+        img = self.samples[index][0].split("/")[-1]
+        group_number = max(
+            [[img in c for c in clusters].index(max([img in c for c in clusters])) for clusters in self.clusters])
+        return super().__getitem__(index), group_number
