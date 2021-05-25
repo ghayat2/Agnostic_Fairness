@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-"""Resnet random weight allocation
+"""Resnet Random weight allocation
 
 This script implements case 3 of the document: https://mit.zoom.us/j/98140955616
 It clusters the training (Bias_0.8) training data into 5 groups, one of them containnig the protceted group
