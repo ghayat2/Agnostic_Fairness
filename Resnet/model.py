@@ -21,6 +21,21 @@ from math import ceil
 def train_model(model, criterion, optimizer, scheduler, dataloaders, dataset_sizes, device, num_epochs=15,
                 start_epoch=0, val_mode=False,
                 show_progress=False):
+    """
+    Trains the model according to given arguments
+    :param model: the model to train
+    :param criterion: the objective of the model
+    :param optimizer: the optimizer to use in the training process
+    :param scheduler: the scheduler
+    :param dataloaders: the data containers both train and test
+    :param dataset_sizes: the sizes of the data both train and test
+    :param device: the device on which to train the model
+    :param num_epochs: the number of epochs for which to train the model
+    :param start_epoch: the epoch number to start with
+    :param val_mode: whether to validate the model while training
+    :param show_progress: whether to show plots showing training progress
+    :return: the trained model
+    """
     if show_progress:
         vis = visdom.Visdom()
         loss_window = vis.line(X=np.ones((1)) * start_epoch,
@@ -126,8 +141,144 @@ def train_model(model, criterion, optimizer, scheduler, dataloaders, dataset_siz
     return model
 
 
+def chunks(lst, K):
+    """
+    Yield successive K-sized chunks from lst.
+    :param lst: the python list
+    :param K: the number of chunks
+    :return: a list split into K chunks
+    """
+    results, n = [], ceil(len(lst) / K)
+    for i in range(0, len(lst), n):
+        results.append(lst[i:(i + n) if i + n < len(lst) else -1])
+    return results
+
+
+def make_clusters(sets, protected_groups, K):
+    """
+    Makes K clusters for each class. One of them contains the minority group and the rest is distributed in K-1
+    random groups
+    :param sets: the paths of images in each class
+    :param protected_groups: the paths of images from the minority group
+    :param K: the number of clusters
+    :return: A list of dimension (n_class, K)
+    """
+    assert len(sets) == len(protected_groups)
+
+    clusters = []
+    for i, s in enumerate(sets):
+        majority, minority = [], []
+        for img in s:
+            minority.append(img) if img in protected_groups[i] else majority.append(img)
+
+        clusters.append([minority] + chunks(majority, K - 1))
+
+    return clusters
+
+
+def visualize_model(model, dataloader, class_names, device, num_images=6):
+    """
+    Visualize some input and model predictions
+    :param model: the trained model
+    :param dataloader: the image data container
+    :param class_names: the name of each class
+    :param device: the device on which the model is trained
+    :param num_images: the number of images to display
+    :return: Visual representation of input images along with model predictions
+    """
+    was_training = model.training
+    model.eval()
+    images_so_far = 0
+    fig = plt.figure()
+
+    with torch.no_grad():
+        for i, (inputs, labels) in enumerate(dataloader):
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+
+            outputs = model(inputs)
+            _, preds = torch.max(outputs, 1)
+
+            for j in range(inputs.size()[0]):
+                images_so_far += 1
+                ax = plt.subplot(num_images // 2, 2, images_so_far)
+                ax.axis('off')
+                ax.set_title('predicted: {}, Actual: {}'.format(class_names[preds[j]], class_names[labels[j]]))
+                imshow(inputs.cpu().data[j])
+
+                if images_so_far == num_images:
+                    model.train(mode=was_training)
+                    return
+        model.train(mode=was_training)
+
+
+def weighted_cross_entropy_loss(output, labels, weights):
+    """
+    The weighted binary cross entropy loss
+    :param output: predictions
+    :param labels: labels
+    :param weights: the weights
+    :return: the loss value
+    """
+    cel = -torch.log(torch.exp(output.gather(1, labels.view(-1, 1))) / torch.sum(torch.exp(output), 1).view(-1, 1))
+    weighted_cel = weights * cel.view(-1)
+    return torch.mean(weighted_cel)
+
+
+def imshow(inp, title=None):
+    """Imshow for Tensor."""
+    inp = inp.numpy().transpose((1, 2, 0))
+    mean = np.array([0.485, 0.456, 0.406])
+    std = np.array([0.229, 0.224, 0.225])
+    inp = std * inp + mean
+    inp = np.clip(inp, 0, 1)
+    plt.imshow(inp)
+    if title is not None:
+        plt.title(title)
+    plt.pause(0.001)  # pause a bit so that plots are updated
+
+
+def accuracy(model, device, dataloader):
+    """
+    Computes the predictive accuracy of the model on the given dataloader
+    :param model: the trained model
+    :param device: the device on which the model was trained
+    :param dataloader: the image data container
+    :return: the accuracy of the model on the given data
+    """
+    model.eval()
+    corrects, total = 0, 0
+    for i, ((inputs, labels), _) in enumerate(dataloader):
+        inputs = inputs.to(device)
+        labels = labels.to(device)
+
+        with torch.no_grad():
+            outputs = model(inputs)
+            _, preds = torch.max(outputs, 1)
+
+        corrects += torch.sum(preds == labels.data)
+        total += inputs.size(0)
+
+    return corrects.double() / total
+
+@DeprecationWarning
 def train_model_groups(model, criterion, optimizer, scheduler, w_protected, dataloaders, dataset_sizes, device,
                        num_epochs=15, num_clusters=5, start_epoch=0, val_mode=False, show_progress=False):
+    """
+        Trains the model according to given arguments
+        :param model: the model to train
+        :param criterion: the objective of the model
+        :param optimizer: the optimizer to use in the training process
+        :param scheduler: the scheduler
+        :param dataloaders: the data containers both train and test
+        :param dataset_sizes: the sizes of the data both train and test
+        :param device: the device on which to train the model
+        :param num_epochs: the number of epochs for which to train the model
+        :param start_epoch: the epoch number to start with
+        :param val_mode: whether to validate the model while training
+        :param show_progress: whether to show plots showing training progress
+        :return: the trained model
+        """
     if show_progress:
         vis = visdom.Visdom()
         loss_window = vis.line(X=np.ones((1)) * start_epoch,
@@ -234,88 +385,3 @@ def train_model_groups(model, criterion, optimizer, scheduler, w_protected, data
         model.load_state_dict(best_model_wts)
 
     return model
-
-
-def chunks(lst, K):
-    """Yield successive K-sized chunks from lst."""
-    results, n = [], ceil(len(lst) / K)
-    for i in range(0, len(lst), n):
-        results.append(lst[i:(i + n) if i + n < len(lst) else -1])
-    return results
-
-
-def make_clusters(sets, protected_groups, K):
-    assert len(sets) == len(protected_groups)
-
-    clusters = []
-    for i, s in enumerate(sets):
-        majority, minority = [], []
-        for img in s:
-            minority.append(img) if img in protected_groups[i] else majority.append(img)
-
-        clusters.append([minority] + chunks(majority, K - 1))
-
-    return clusters
-
-
-def visualize_model(model, dataloader, class_names, device, num_images=6):
-    was_training = model.training
-    model.eval()
-    images_so_far = 0
-    fig = plt.figure()
-
-    with torch.no_grad():
-        for i, (inputs, labels) in enumerate(dataloader):
-            inputs = inputs.to(device)
-            labels = labels.to(device)
-
-            outputs = model(inputs)
-            _, preds = torch.max(outputs, 1)
-
-            for j in range(inputs.size()[0]):
-                images_so_far += 1
-                ax = plt.subplot(num_images // 2, 2, images_so_far)
-                ax.axis('off')
-                ax.set_title('predicted: {}, Actual: {}'.format(class_names[preds[j]], class_names[labels[j]]))
-                imshow(inputs.cpu().data[j])
-
-                if images_so_far == num_images:
-                    model.train(mode=was_training)
-                    return
-        model.train(mode=was_training)
-
-
-def weighted_cross_entropy_loss(output, labels, weights):
-    cel = -torch.log(torch.exp(output.gather(1, labels.view(-1, 1))) / torch.sum(torch.exp(output), 1).view(-1, 1))
-    weighted_cel = weights * cel.view(-1)
-    return torch.mean(weighted_cel)
-
-
-def imshow(inp, title=None):
-    """Imshow for Tensor."""
-    inp = inp.numpy().transpose((1, 2, 0))
-    mean = np.array([0.485, 0.456, 0.406])
-    std = np.array([0.229, 0.224, 0.225])
-    inp = std * inp + mean
-    inp = np.clip(inp, 0, 1)
-    plt.imshow(inp)
-    if title is not None:
-        plt.title(title)
-    plt.pause(0.001)  # pause a bit so that plots are updated
-
-
-def accuracy(model, device, dataloader):
-    model.eval()
-    corrects, total = 0, 0
-    for i, ((inputs, labels), _) in enumerate(dataloader):
-        inputs = inputs.to(device)
-        labels = labels.to(device)
-
-        with torch.no_grad():
-            outputs = model(inputs)
-            _, preds = torch.max(outputs, 1)
-
-        corrects += torch.sum(preds == labels.data)
-        total += inputs.size(0)
-
-    return corrects.double() / total
