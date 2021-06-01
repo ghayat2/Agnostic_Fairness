@@ -179,9 +179,9 @@ class Dataset(data.Dataset):
         self.protect = np.array(list(map(lambda a: self.mapping[tuple(a)], list(df[protect_columns].values))))
 
     def constructor_2(self, features, labels, protect):
-        self.features = features
-        self.label = labels
-        self.protect = protect
+        self.features = np.array(features)
+        self.label = np.array(labels)
+        self.protect = np.array(protect)
 
     def __len__(self):
         'Denotes the total number of samples'

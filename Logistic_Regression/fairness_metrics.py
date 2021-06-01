@@ -14,6 +14,30 @@ def binary_confusion_matrix(true_labels, pred_labels, protect, protect_group):
     return confusion_matrix(group_true_labels, group_pred_labels)
 
 
+def generalized_binary_confusion_matrix(true_labels, pred_scores, protect, protect_group, unfavorable_label=0,
+                                        favorable_label=1):
+    indices = np.where(protect == protect_group)
+    group_pred_scores = pred_scores[indices]
+    group_true_labels = true_labels[indices]
+
+    GTN = np.sum((1 - group_pred_scores)[group_true_labels == unfavorable_label])
+    GFN = np.sum((1 - group_pred_scores)[group_true_labels == favorable_label])
+    GTP = np.sum(group_pred_scores[group_true_labels == favorable_label])
+    GFP = np.sum(group_pred_scores[group_true_labels == unfavorable_label])
+
+    return [[GTN, GFP], [GFN, GTP]]
+
+
+def generalized_false_positive_rate(true_labels, preds, groups, to_keep):
+    cm = generalized_binary_confusion_matrix(true_labels, preds, groups, to_keep)
+    return cm[0][1] / sum(cm[0])
+
+
+def generalized_false_negative_rate(true_labels, preds, groups, to_keep):
+    cm = generalized_binary_confusion_matrix(true_labels, preds, groups, to_keep)
+    return cm[1][0] / sum(cm[1])
+
+
 def false_positive_rate(group_confusion_matrix):
     return group_confusion_matrix[0][1] / np.sum(group_confusion_matrix[0, :])
 
@@ -160,13 +184,13 @@ def scatter_plots(device, predictor_maj, predictor_min, predictor_comb, test_maj
 
     axes = plt.gca()
     axes.set_ylim([-0.5, 0.5])
-    axes.hist(s3_maj, weights=[1/len(s3_maj)]*len(s3_maj), bins=int(len(s3_maj)/4), color="Blue", alpha=0.7)
+    axes.hist(s3_maj, weights=[1 / len(s3_maj)] * len(s3_maj), bins=int(len(s3_maj) / 4), color="Blue", alpha=0.7)
     axes.get_yaxis().set_ticks([])
 
     axes2 = axes.twinx()
     axes2.set_ylim([-0.5, 0.5])
     axes2.invert_yaxis()
-    axes2.hist(s3_min, weights=[1 / len(s3_min)] * len(s3_min), bins=int(len(s3_min)/2), color="darkblue", alpha=0.7)
+    axes2.hist(s3_min, weights=[1 / len(s3_min)] * len(s3_min), bins=int(len(s3_min) / 2), color="darkblue", alpha=0.7)
     axes2.get_yaxis().set_ticks([])
 
     return axes.scatter(X, Y, s=5, c=C)
