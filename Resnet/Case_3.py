@@ -134,9 +134,9 @@ data_transforms = {
     ]),
 }
 
-image_datasets = {x: my_ImageFolderCluster(os.path.join(data_dir, f"train_{BIAS}" if x == "train" and BIAS else x),
-                                           data_transforms[x],
-                                           make_clusters([os.listdir(os.path.join(data_dir,
+image_datasets = {x: my_ImageFolderRandomCluster(os.path.join(data_dir, f"train_{BIAS}" if x == "train" and BIAS else x),
+                                                 data_transforms[x],
+                                                 make_clusters([os.listdir(os.path.join(data_dir,
                                                                                   f"train_{BIAS}/" + class0 if x == "train" and BIAS else x)),
                                                           os.listdir(os.path.join(data_dir,
                                                                                   f"train_{BIAS}/" + class1 if x == "train" and BIAS else x))],
