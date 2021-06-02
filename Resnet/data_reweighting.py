@@ -185,34 +185,34 @@ for trial in range(NUM_TRIALS):
     train_accs.append(train_accuracy)
     test_accs.append(test_accuracy)
 
-    print("Training: ", equalizing_odds(train_pred_labels, train_labels, train_protect))
     accs = equalizing_odds(test_pred_labels, test_labels, test_protect)
     fairness_accs.append(accs)
 
     # #### Saving checkpoint
+    if ID >= 0:
+        PATH = "Reweighting/checkpoints/" + ("cluster_update/" if UPDATE == "cluster" else "sample_update/") + (
+            "w_val" if VAL_MODE else "w.o_val") + f"/Bias_{BIAS}/model_ep_{START_EPOCH + NUM_EPOCH}/Run_{ID}/trial_{trial}"
+        LOSS = "CrossEntropyLoss"
 
+        os.makedirs(PATH, exist_ok=True)
+        torch.save({
+            'epoch': START_EPOCH + NUM_EPOCH,
+            'model_state_dict': model_conv.state_dict(),
+            'optimizer_state_dict': optimizer_conv.state_dict(),
+            'lr_scheduler_state_dict': exp_lr_scheduler.state_dict(),
+            'loss': LOSS,
+        }, PATH + "/checkpoint.pt")
+
+if ID >= 0:
+    train_accs = np.array(train_accs)
+    test_accs = np.array(test_accs)
+    fairness_accs = np.array(fairness_accs)
     PATH = "Reweighting/checkpoints/" + ("cluster_update/" if UPDATE == "cluster" else "sample_update/") + (
-        "w_val" if VAL_MODE else "w.o_val") + f"/Bias_{BIAS}/model_ep_{START_EPOCH + NUM_EPOCH}/Run_{ID}/trial_{trial}"
-    LOSS = "CrossEntropyLoss"
+        "w_val" if VAL_MODE else "w.o_val") + f"/Bias_{BIAS}/model_ep_{START_EPOCH + NUM_EPOCH}/Run_{ID}/stats.txt"
 
-    os.makedirs(PATH, exist_ok=True)
-    torch.save({
-        'epoch': START_EPOCH + NUM_EPOCH,
-        'model_state_dict': model_conv.state_dict(),
-        'optimizer_state_dict': optimizer_conv.state_dict(),
-        'lr_scheduler_state_dict': exp_lr_scheduler.state_dict(),
-        'loss': LOSS,
-    }, PATH + "/checkpoint.pt")
-
-train_accs = np.array(train_accs)
-test_accs = np.array(test_accs)
-fairness_accs = np.array(fairness_accs)
-PATH = "Reweighting/checkpoints/" + ("cluster_update/" if UPDATE == "cluster" else "sample_update/  ") + (
-    "w_val" if VAL_MODE else "w.o_val") + f"/Bias_{BIAS}/model_ep_{START_EPOCH + NUM_EPOCH}/Run_{ID}/stats.txt"
-
-file = open(PATH, "w")
-file.write(f"Training accuracy: {train_accs.mean()} += {train_accs.std()} \n")
-file.write(f"Test accuracy: {test_accs.mean()} += {test_accs.std()} \n")
-file.write(f"Fairness accuracy: \n {np.mean(fairness_accs, axis=0)} \n += \n {np.std(fairness_accs, axis=0)}")
-file.close()
+    file = open(PATH, "w")
+    file.write(f"Training accuracy: {train_accs.mean()} += {train_accs.std()} \n")
+    file.write(f"Test accuracy: {test_accs.mean()} += {test_accs.std()} \n")
+    file.write(f"Fairness accuracy: \n {np.mean(fairness_accs, axis=0)} \n += \n {np.std(fairness_accs, axis=0)}")
+    file.close()
 
