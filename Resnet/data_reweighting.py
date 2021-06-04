@@ -52,21 +52,36 @@ dr_m, dr_f = len(dr_m_d) + len(dr_m_l), len(dr_f_d) + len(dr_f_l)
 try:
     opts, args = getopt.getopt(sys.argv[1:], "h",
                                ["w_protected=", "bias=", "val_mode=", "start_epoch=", "num_epoch=", "num_clusters=",
-                                "visdom=", "id=", "num_trials=", "dataset=", "update=", "update_lr="])
+                                "id=", "num_trials=", "dataset=", "update=", "update_lr="])
 except getopt.GetoptError:
     print("Wrong format ...")
     print(sys.argv)
     sys.exit(2)
 
-W_PROTECTED, BIAS, VAL_MODE, START_EPOCH, NUM_EPOCH, NUM_CLUSTERS, SHOW_PROGRESS, ID, DATASET, NUM_TRIALS, UPDATE_LR, UPDATE = \
-                                                    1, 0, False, 0, 15, 5, False, 0, "doctor_nurse", 1, 1, "cluster"
+W_PROTECTED, BIAS, VAL_MODE, START_EPOCH, NUM_EPOCH, NUM_CLUSTERS, ID, DATASET, NUM_TRIALS, UPDATE_LR, UPDATE = \
+    1, 0, False, 0, 15, 5, 0, "doctor_nurse", 1, 1, "cluster"
 
 for opt, arg in opts:
     if opt == '-h':
-            print("Case_3.py --w_protected=<w_protected> --bias=<bias> --val_mode=<val_mode> --start_epoch=<start_epoch>"
-                  "--num_epoch=<num_epoch> --num_clusters=<num_clusters> --visdom=<visdom> --id=<id> "
-                  "--num_trials=<num_trials> --dataset=<dataset> --update_lr=<update_lr>")
-            sys.exit()
+        print(
+            "--w_protected=<w_protected> \n"
+            "This parameter is only relevant when implementing the preprocessing reweighting method: \n"
+            "Images from the minority will be applied a weight of <w_protected> when training \n"
+            "--bias=<bias> \n"
+            "This attribute specifies the level of bias present in the training set\n"
+            "For the moment, bias can take values in {0,0.8}, where bias > 0 specifies the ratio of majority/minority\n"
+            "present in the training set\n"
+            "--val_mode=<val_mode>\n"
+            "Whether to train the model with validation\n"
+            "--start_epoch=<start_epoch>\n"
+            "Whether to start training a model from scratch or from a certain epoch \n"
+            "--update=<update> \n"
+            "cluster: each cluster has a weight \n"
+            "sample: each sample has a weight \n"
+            "--num_epoch=<num_epoch> \n--id=<id> \n--num_trials=<num_trials> \n"
+            "--update_lr=<update_lr> \n")
+
+        sys.exit()
     if opt == '--w_protected':
         W_PROTECTED = int(arg)
     if opt == '--bias':
@@ -79,8 +94,6 @@ for opt, arg in opts:
         NUM_EPOCH = int(arg)
     if opt == '--num_clusters':
         NUM_CLUSTERS = int(arg)
-    if opt == '--visdom':
-        SHOW_PROGRESS = int(arg)
     if opt == '--id':
         ID = int(arg)
     if opt == '--num_trials':
@@ -98,7 +111,8 @@ if DATASET not in ["doctor_nurse", "basket_volley"] or UPDATE not in ["cluster",
 
 print(
     f"RUNNING SCRIPT WITH ARGUMENTS : -w_protected={W_PROTECTED} -bias={BIAS} -val_mode={VAL_MODE} -start_epoch={START_EPOCH} "
-    f"-num_epoch={NUM_EPOCH}, -num_clusters={NUM_CLUSTERS}, -visdom={SHOW_PROGRESS}, -id={ID}, -num_trials={NUM_TRIALS} -dataset={DATASET}")
+    f"-num_epoch={NUM_EPOCH}, -num_clusters={NUM_CLUSTERS}, -id={ID}, -num_trials={NUM_TRIALS} -dataset={DATASET}"
+    f"-update={UPDATE}, -update_lr={UPDATE_LR}")
 
 data_dir = '../Datasets/doctor_nurse/train_test_split' if DATASET == "doctor_nurse" else \
     '../Datasets/basket_volley/train_test_split'
@@ -131,9 +145,9 @@ data_transforms = {
 }
 
 image_datasets = {x: my_ImageFolderCluster(os.path.join(data_dir, f"train_{BIAS}" if x == "train" and BIAS else x),
-                                                 data_transforms[x],
-                                                 [class0_maj + class1_min, class1_maj + class0_min])
-                                            for x in ['train', 'test']}
+                                           data_transforms[x],
+                                           [class0_maj + class1_min, class1_maj + class0_min])
+                  for x in ['train', 'test']}
 
 dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=4,
                                               shuffle=True, num_workers=4)
@@ -176,10 +190,11 @@ for trial in range(NUM_TRIALS):
 
     func = train_cluster_reweight if UPDATE == "cluster" else train_sample_reweight
     history = func(model_conv, device, dataloaders["train"], optimizer_conv, exp_lr_scheduler, NUM_EPOCH,
-                                     num_clusters=2, num_labels=2, update_lr=UPDATE_LR)
+                   num_clusters=NUM_CLUSTERS, num_labels=2, update_lr=UPDATE_LR)
 
     ###### Test set
-    train_pred_labels, train_labels, train_protect, _ , train_accuracy, _ = test(model_conv, device, dataloaders["train"])
+    train_pred_labels, train_labels, train_protect, _, train_accuracy, _ = test(model_conv, device,
+                                                                                dataloaders["train"])
     test_pred_labels, test_labels, test_protect, _, test_accuracy, _ = test(model_conv, device, dataloaders["test"])
 
     train_accs.append(train_accuracy)
@@ -215,4 +230,3 @@ if ID >= 0:
     file.write(f"Test accuracy: {test_accs.mean()} += {test_accs.std()} \n")
     file.write(f"Fairness accuracy: \n {np.mean(fairness_accs, axis=0)} \n += \n {np.std(fairness_accs, axis=0)}")
     file.close()
-

@@ -4,7 +4,7 @@ from model import *
 import numpy as np
 
 
-def demographic_parity(model, device, image_dataset):
+def demographic_parity(model, device, image_dataset, min_groups=None):
     """
     Evaluates the accuracy of images from the majority and minority groups from each class
     :param model: the trained model
@@ -13,7 +13,7 @@ def demographic_parity(model, device, image_dataset):
     :param min_groups: the path of images in the minority groups from each class
     :return: a table containing the accuracy of each group
     """
-    indices = get_indices(image_dataset)
+    indices = _get_indices_2(image_dataset, min_groups) if min_groups else _get_indices_1(image_dataset)
 
     class1_majority = torch.utils.data.Subset(image_dataset, indices=indices[0][0])
     class1_minority = torch.utils.data.Subset(image_dataset, indices=indices[0][1])
@@ -29,7 +29,22 @@ def demographic_parity(model, device, image_dataset):
     return pd.DataFrame(accuracies, index=["Class0", "Class1"], columns=["Group0", "Group1"])
 
 
-def get_indices(image_set, num_labels=2, num_protected=2):
+def _get_indices_1(image_set, num_labels=2, num_protected=2):
+    """
+    Gets the indices of the minority group images in the image_set container
+    :param image_set: the image container from which to get the indices from
+    :param num_labels: the number of labels
+    :param num_protected: the number of demographic groups
+    :return: the indices corresponding to images in different demographic groups
+    """
+    indices = [[[] for _ in range(num_protected)] for _ in range(num_labels)]
+    for _, label, cluster, index in image_set:
+        indices[label][cluster].append(index)
+
+    return indices
+
+
+def _get_indices_2(image_set, min_groups, num_labels=2, num_protected=2):
     """
     Gets the indices of the minority group images in the image_set container
     :param image_set: the image container from which to get the indices from
@@ -39,8 +54,8 @@ def get_indices(image_set, num_labels=2, num_protected=2):
     :return: the indices corresponding to images in different demographic groups
     """
     indices = [[[] for _ in range(num_protected)] for _ in range(num_labels)]
-    for _, label, cluster, index in image_set:
-        indices[label][cluster].append(index)
+    for i, (_, label, _, _) in enumerate(image_set):
+        indices[label][int(image_set.samples[i][0].split("/")[-1] in min_groups[label])].append(i)
 
     return indices
 

@@ -13,7 +13,7 @@ class my_ImageFolder(datasets.ImageFolder):
 
     def __getitem__(self, index: int):
         w = self.w_protected if self.samples[index][0].split("/")[-1] in self.protected_group else 1
-        return [item for sublist in [super().__getitem__(index), [w], [index]] for item in sublist] # index
+        return [item for sublist in [super().__getitem__(index), [w], [index]] for item in sublist]
 
 
 class my_ImageFolderRandomCluster(datasets.ImageFolder):

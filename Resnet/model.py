@@ -618,7 +618,6 @@ def accuracy(model, device, dataloader):
         corrects += torch.sum(preds == labels.data)
         total += inputs.size(0)
 
-    print("Number of correct in acc(): ", corrects)
     return corrects.double() / total
 
 
