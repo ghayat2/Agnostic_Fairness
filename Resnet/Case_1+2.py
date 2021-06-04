@@ -105,6 +105,9 @@ data_dir = '../Datasets/doctor_nurse/train_test_split' if DATASET == "doctor_nur
 
 class0_min, class1_min = dr_f_d + dr_f_l if DATASET == "doctor_nurse" else bask_y_m + bask_y_f, \
                          nur_m_d + nur_m_l if DATASET == "doctor_nurse" else voll_r_m + voll_r_f
+
+class0_maj, class1_maj = dr_m_d + dr_m_l if DATASET == "doctor_nurse" else bask_r_m + bask_r_f, \
+                         nur_f_d + nur_f_l if DATASET == "doctor_nurse" else voll_y_m + voll_y_f
 protected_groups = set(class0_min + class1_min)
 
 ###  Defining dataloaders
@@ -129,8 +132,9 @@ data_transforms = {
 }
 
 image_datasets = {
-    x: my_ImageFolder(os.path.join(data_dir, f"train_{BIAS}" if x == "train" and BIAS else x), data_transforms[x],
-                      protected_groups, W_PROTECTED)
+    x: my_ImageFolder(os.path.join(data_dir, f"train_{BIAS}" if x == "train" and BIAS else x),
+                             data_transforms[x],
+                             protected_groups, W_PROTECTED)
     for x in ['train', 'test']}
 
 dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=4,
@@ -173,17 +177,18 @@ for trial in range(NUM_TRIALS):
         epoch = checkpoint['epoch']
         loss = checkpoint['loss']
 
-    model_conv = train_model(model_conv, criterion, optimizer_conv, exp_lr_scheduler, dataloaders, dataset_sizes, device,
+    model_conv = train_model(model_conv, criterion, optimizer_conv, exp_lr_scheduler, dataloaders, dataset_sizes,
+                             device,
                              start_epoch=START_EPOCH,
                              num_epochs=NUM_EPOCH,
                              val_mode=VAL_MODE, show_progress=SHOW_PROGRESS)
 
+    print("Old way: ")
     train_accs.append(float(accuracy(model_conv, device, dataloaders['train'])))
     test_accs.append(float(accuracy(model_conv, device, dataloaders['test'])))
 
-    test_path = os.path.join(data_dir, "test")
-    classes = os.listdir(test_path)
-    fairness_accs.append(demographic_parity(model_conv, device, image_datasets["test"], [class0_min, class1_min]).to_numpy())
+    fairness_accs.append(
+        demographic_parity(model_conv, device, image_datasets["test"], [class0_min, class1_min]).to_numpy())
 
     # #### Saving checkpoint
 
@@ -191,14 +196,15 @@ for trial in range(NUM_TRIALS):
         "w_val" if VAL_MODE else "w.o_val") + f"/Bias_{BIAS}/model_ep_{START_EPOCH + NUM_EPOCH}/Run_{ID}/trial_{trial}"
     LOSS = "CrossEntropyLoss"
 
-    os.makedirs(PATH, exist_ok=True)
-    torch.save({
-        'epoch': START_EPOCH + NUM_EPOCH,
-        'model_state_dict': model_conv.state_dict(),
-        'optimizer_state_dict': optimizer_conv.state_dict(),
-        'lr_scheduler_state_dict': exp_lr_scheduler.state_dict(),
-        'loss': LOSS,
-    }, PATH + "/checkpoint.pt")
+    if ID >= 0:
+        os.makedirs(PATH, exist_ok=True)
+        torch.save({
+            'epoch': START_EPOCH + NUM_EPOCH,
+            'model_state_dict': model_conv.state_dict(),
+            'optimizer_state_dict': optimizer_conv.state_dict(),
+            'lr_scheduler_state_dict': exp_lr_scheduler.state_dict(),
+            'loss': LOSS,
+        }, PATH + "/checkpoint.pt")
 
 train_accs = np.array(train_accs)
 test_accs = np.array(test_accs)
@@ -206,8 +212,9 @@ fairness_accs = np.array(fairness_accs)
 PATH = ("Case_2/" if W_PROTECTED != 1 else "Case_1/") + "checkpoints/" + (
     "w_val" if VAL_MODE else "w.o_val") + f"/Bias_{BIAS}/model_ep_{START_EPOCH + NUM_EPOCH}/Run_{ID}/stats.txt"
 
-file = open(PATH, "w")
-file.write(f"Training accuracy: {train_accs.mean()} += {train_accs.std()} \n")
-file.write(f"Test accuracy: {test_accs.mean()} += {test_accs.std()} \n")
-file.write(f"Fairness accuracy: \n {np.mean(fairness_accs, axis=0)} \n += \n {np.std(fairness_accs, axis=0)}")
-file.close()
+if ID >= 0:
+    file = open(PATH, "w")
+    file.write(f"Training accuracy: {train_accs.mean()} += {train_accs.std()} \n")
+    file.write(f"Test accuracy: {test_accs.mean()} += {test_accs.std()} \n")
+    file.write(f"Fairness accuracy: \n {np.mean(fairness_accs, axis=0)} \n += \n {np.std(fairness_accs, axis=0)}")
+    file.close()
