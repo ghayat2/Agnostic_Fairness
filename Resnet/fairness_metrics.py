@@ -1,6 +1,6 @@
 import torch
 import pandas as pd
-from model import accuracy
+from model import *
 import numpy as np
 
 

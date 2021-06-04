@@ -175,7 +175,7 @@ for trial in range(NUM_TRIALS):
         loss = checkpoint['loss']
 
     func = train_cluster_reweight if UPDATE == "cluster" else train_sample_reweight
-    history = func(model_conv, device, dataloaders["train"], optimizer_conv, NUM_EPOCH,
+    history = func(model_conv, device, dataloaders["train"], optimizer_conv, exp_lr_scheduler, NUM_EPOCH,
                                      num_clusters=2, num_labels=2, update_lr=UPDATE_LR)
 
     ###### Test set

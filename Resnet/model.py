@@ -16,6 +16,7 @@ import copy
 import visdom
 import pandas as pd
 from math import ceil
+from fairness_metrics import *
 
 
 def train_model(model, criterion, optimizer, scheduler, dataloaders, dataset_sizes, device, num_epochs=15,
@@ -61,6 +62,7 @@ def train_model(model, criterion, optimizer, scheduler, dataloaders, dataset_siz
     best_acc = 0.0
 
     for epoch in range(start_epoch, start_epoch + num_epochs):
+
         losses, accuracies = {}, {}
         print('Epoch {}/{}'.format(epoch, start_epoch + num_epochs - 1))
         print('-' * 10)
@@ -101,6 +103,7 @@ def train_model(model, criterion, optimizer, scheduler, dataloaders, dataset_siz
                 # statistics
                 running_loss += loss.item() * inputs.size(0)
                 running_corrects += torch.sum(preds == labels.data)
+
             if phase == 'train':
                 scheduler.step()
 
@@ -138,10 +141,11 @@ def train_model(model, criterion, optimizer, scheduler, dataloaders, dataset_siz
     if "val" in phases:
         model.load_state_dict(best_model_wts)
 
+
     return model
 
 
-def train_cluster_reweight(model, device, train_loader, optimizer, epochs, verbose=1, num_clusters=2, num_labels=2,
+def train_cluster_reweight(model, device, train_loader, optimizer, scheduler, epochs, verbose=1, num_clusters=2, num_labels=2,
                            update_lr=10, cluster_weights=None):
     """
     Trains the model in MODE 2. Each cluster has an individual weight that is updating at each epoch depending on
@@ -158,7 +162,7 @@ def train_cluster_reweight(model, device, train_loader, optimizer, epochs, verbo
     :param cluster_weights: Values with which to initialize cluster weights
     :return: the performance history of the model during the training process
     """
-    model.train()
+
     if not cluster_weights:
         cluster_weights = [[1.0 for _ in range(num_clusters)] for _ in range(num_labels)]
     # cluster_weights = [[-0.0762689, 1.64822], [-0.22587, 1.21449]]
@@ -170,6 +174,7 @@ def train_cluster_reweight(model, device, train_loader, optimizer, epochs, verbo
                            index=range(epochs))
 
     for epoch in range(epochs):
+        model.train()
         sum_num_correct, sum_loss = 0, 0
         cluster_counts = [[[0.0, 0.0] for _ in range(num_clusters)] for _ in range(num_labels)]
         cluster_grads = [[[] for _ in range(num_clusters)] for _ in range(num_labels)]
@@ -178,23 +183,25 @@ def train_cluster_reweight(model, device, train_loader, optimizer, epochs, verbo
             data, target, cluster = data.to(device, dtype=torch.float), target.to(device, dtype=torch.long), \
                                     cluster.to(device, dtype=torch.long)
             optimizer.zero_grad()
-            output = model(data)
-            _, preds = torch.max(output, 1)
+            with torch.set_grad_enabled(True):
+                output = model(data)
+                _, preds = torch.max(output, 1)
 
-            weights = torch.tensor([cluster_weights[int(t)][int(c)] for c, t in zip(cluster, target)],
-                                   requires_grad=True).type(torch.float)
+                weights = torch.tensor([cluster_weights[int(t)][int(c)] for c, t in zip(cluster, target)],
+                                       requires_grad=True).type(torch.float)
 
-            loss = weighted_cross_entropy_loss(output, target, weights)
+                loss = weighted_cross_entropy_loss(output, target, weights)
+                loss.backward()
+                optimizer.step()
 
             correct = preds.eq(target.view_as(preds)).sum().item()
             sum_num_correct += correct
             sum_loss += loss.item() * train_loader.batch_size
-            loss.backward()
-            optimizer.step()
 
             cluster_counts = cluster_counts_update(cluster_counts, preds, target, cluster)
             cluster_grads = get_cluster_grads(cluster_grads, weights.grad.numpy(), cluster, target)
 
+        scheduler.step()
         sum_loss /= len(train_loader.dataset)
         clusters_accs = [[l[0] / l[1] for l in cluster] for cluster in cluster_counts]
         cluster_grads = [[np.average(l) for l in clusters] for clusters in cluster_grads]
@@ -219,10 +226,23 @@ def train_cluster_reweight(model, device, train_loader, optimizer, epochs, verbo
                     str(clusters_accs),
                     str(cluster_weights)))
 
+        print("Evaluating: Train mode")
+        train_pred_labels, train_labels, train_protect, _, train_accuracy, _ = test(model, device,
+                                                                                    train_loader, eval=False)
+        print(train_accuracy)
+        print(equalizing_odds(train_pred_labels, train_labels, train_protect))
+        print("Evaluating: Eval mode")
+        train_pred_labels, train_labels, train_protect, _, train_accuracy, _ = test(model, device,
+                                                                                    train_loader, eval=True)
+        print(train_accuracy)
+        print(equalizing_odds(train_pred_labels, train_labels, train_protect))
+
+
+
     return history
 
 
-def train_sample_reweight(model, device, train_loader, optimizer, epochs, verbose=1, num_clusters=2, num_labels=2,
+def train_sample_reweight(model, device, train_loader, optimizer, scheduler, epochs, verbose=1, num_clusters=2, num_labels=2,
                           update_lr=10, init_weights=None):
     """
     Trains the model in MODE 2. Each sample has an individual weight that is updating at each epoch depending on
@@ -260,24 +280,26 @@ def train_sample_reweight(model, device, train_loader, optimizer, epochs, verbos
             data, target = data.to(device, dtype=torch.float), target.to(device, dtype=torch.long)
 
             optimizer.zero_grad()
-            output = model(data)
-            _, preds = torch.max(output, 1)
+            with torch.set_grad_enabled(True):
+                output = model(data)
+                _, preds = torch.max(output, 1)
 
-            weights = torch.tensor(
-                [sample_weights[int(t)][int(c)][int(i)] for c, t, i in zip(cluster, target, indexes)],
-                requires_grad=True).type(torch.float)
+                weights = torch.tensor(
+                    [sample_weights[int(t)][int(c)][int(i)] for c, t, i in zip(cluster, target, indexes)],
+                    requires_grad=True).type(torch.float)
 
-            loss = weighted_cross_entropy_loss(output, target, weights)
+                loss = weighted_cross_entropy_loss(output, target, weights)
+                loss.backward()
+                optimizer.step()
 
             correct = preds.eq(target.view_as(preds)).sum().item()
             sum_num_correct += correct
             sum_loss += loss.item() * train_loader.batch_size
-            loss.backward()
-            optimizer.step()
 
             correct_classifications = update_classification(correct_classifications, indexes, preds, target, cluster)
             sample_grads = get_sample_grads(sample_grads, indexes, weights.grad.numpy(), cluster, target)
 
+        scheduler.step()
         sum_loss /= len(train_loader.dataset)
         clusters_accs = [[sum(cluster.values()) / len(cluster) for cluster in clusters]
                          for clusters in correct_classifications]
@@ -596,10 +618,11 @@ def accuracy(model, device, dataloader):
         corrects += torch.sum(preds == labels.data)
         total += inputs.size(0)
 
+    print("Number of correct in acc(): ", corrects)
     return corrects.double() / total
 
 
-def test(model, device, test_loader):
+def test(model, device, test_loader, eval=True):
     """
     Evaluates the quality of the predictions of the trained model on a test set
     :param model: the trained model
@@ -607,7 +630,11 @@ def test(model, device, test_loader):
     :param test_loader: the test set
     :return: the model predictions, loss values and accuracy
     """
-    model.eval()
+    if eval:
+        model.eval()
+    else:
+        model.train()
+
     test_loss, correct = 0, 0
     test_pred = torch.zeros(0, 1).to(device)
     test_labels = torch.zeros(0, 1).to(device)
