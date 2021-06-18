@@ -165,7 +165,6 @@ def train_cluster_reweight(model, device, train_loader, optimizer, scheduler, ep
 
     if not cluster_weights:
         cluster_weights = [[1.0 for _ in range(num_clusters)] for _ in range(num_labels)]
-    # cluster_weights = [[-0.0762689, 1.64822], [-0.22587, 1.21449]]
     history = pd.DataFrame([], columns=["loss", "accuracy"] +
                                        [f"cluster_acc_{t}{s}" for t in range(num_labels) for s in range(num_clusters)] +
                                        [f"cluster_weight_{t}{s}" for t in range(num_labels) for s in
