@@ -52,14 +52,14 @@ dr_m, dr_f = len(dr_m_d) + len(dr_m_l), len(dr_f_d) + len(dr_f_l)
 try:
     opts, args = getopt.getopt(sys.argv[1:], "h",
                                ["w_protected=", "bias=", "val_mode=", "start_epoch=", "num_epoch=", "num_clusters=",
-                                "id=", "num_trials=", "dataset=", "update=", "update_lr="])
+                                "id=", "num_trials=", "dataset=", "update=", "update_lr=", "clusters="])
 except getopt.GetoptError:
     print("Wrong format ...")
     print(sys.argv)
     sys.exit(2)
 
-W_PROTECTED, BIAS, VAL_MODE, START_EPOCH, NUM_EPOCH, NUM_CLUSTERS, ID, DATASET, NUM_TRIALS, UPDATE_LR, UPDATE = \
-    1, 0, False, 0, 15, 5, 0, "doctor_nurse", 1, 1, "cluster"
+W_PROTECTED, BIAS, VAL_MODE, START_EPOCH, NUM_EPOCH, NUM_CLUSTERS, ID, DATASET, NUM_TRIALS, UPDATE_LR, UPDATE, CLUSTERS = \
+    1, 0, False, 0, 15, 2, 0, "doctor_nurse", 1, 1, "cluster", None
 
 for opt, arg in opts:
     if opt == '-h':
@@ -79,7 +79,9 @@ for opt, arg in opts:
             "cluster: each cluster has a weight \n"
             "sample: each sample has a weight \n"
             "--num_epoch=<num_epoch> \n--id=<id> \n--num_trials=<num_trials> \n"
-            "--update_lr=<update_lr> \n")
+            "--update_lr=<update_lr> \n"
+            "--clusters=<clusters>"
+            "This parameter is the name of a python dictionary mapping each sample to its cluster")
 
         sys.exit()
     if opt == '--w_protected':
@@ -88,6 +90,8 @@ for opt, arg in opts:
         BIAS = float(arg)
     if opt == '--val_mode':
         VAL_MODE = int(arg)
+    if opt == '--clusters':
+        CLUSTERS = str(arg)
     if opt == '--start_epoch':
         START_EPOCH = int(arg)
     if opt == '--num_epoch':
@@ -112,7 +116,7 @@ if DATASET not in ["doctor_nurse", "basket_volley"] or UPDATE not in ["cluster",
 print(
     f"RUNNING SCRIPT WITH ARGUMENTS : -w_protected={W_PROTECTED} -bias={BIAS} -val_mode={VAL_MODE} -start_epoch={START_EPOCH} "
     f"-num_epoch={NUM_EPOCH}, -num_clusters={NUM_CLUSTERS}, -id={ID}, -num_trials={NUM_TRIALS} -dataset={DATASET}"
-    f"-update={UPDATE}, -update_lr={UPDATE_LR}")
+    f"-update={UPDATE}, -update_lr={UPDATE_LR} -clusters={CLUSTERS}")
 
 data_dir = '../Datasets/doctor_nurse/train_test_split' if DATASET == "doctor_nurse" else \
     '../Datasets/basket_volley/train_test_split'
@@ -146,12 +150,15 @@ data_transforms = {
 
 image_datasets = {x: my_ImageFolderCluster(os.path.join(data_dir, f"train_{BIAS}" if x == "train" and BIAS else x),
                                            data_transforms[x],
-                                           [class0_maj + class1_min, class1_maj + class0_min])
+                                           [class0_maj + class1_min, class1_maj + class0_min],
+                                           CLUSTERS if x == "train" else None)
                   for x in ['train', 'test']}
 
 dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=4,
                                               shuffle=True, num_workers=4)
                for x in ['train', 'test']}
+
+
 dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'test']}
 class_names = image_datasets['train'].classes
 
@@ -176,7 +183,7 @@ for trial in range(NUM_TRIALS):
     optimizer_conv = optim.SGD(model_conv.fc.parameters(), lr=0.001, momentum=0.9)
 
     # Decay LR by a factor of 0.1 every 7 epochs
-    exp_lr_scheduler = lr_scheduler.StepLR(optimizer_conv, step_size=7, gamma=0.1)
+    exp_lr_scheduler = lr_scheduler.StepLR(optimizer_conv, step_size=5, gamma=0.2)
 
     if START_EPOCH:
         PATH = "Case_3/checkpoints/" + (
