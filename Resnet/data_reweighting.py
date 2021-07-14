@@ -78,6 +78,7 @@ for opt, arg in opts:
             "--update=<update> \n"
             "cluster: each cluster has a weight \n"
             "sample: each sample has a weight \n"
+            "individual: each sample is treated as an independent individual\n"
             "--num_epoch=<num_epoch> \n--id=<id> \n--num_trials=<num_trials> \n"
             "--update_lr=<update_lr> \n"
             "--clusters=<clusters>"
@@ -109,7 +110,7 @@ for opt, arg in opts:
     if opt == '--update_lr':
         UPDATE_LR = float(arg)
 
-if DATASET not in ["doctor_nurse", "basket_volley"] or UPDATE not in ["cluster", "sample"]:
+if DATASET not in ["doctor_nurse", "basket_volley"] or UPDATE not in ["cluster", "sample", "individual"]:
     print("Invalid arguments, exiting ...")
     sys.exit(1)
 
@@ -195,7 +196,8 @@ for trial in range(NUM_TRIALS):
         epoch = checkpoint['epoch']
         loss = checkpoint['loss']
 
-    func = train_cluster_reweight if UPDATE == "cluster" else train_sample_reweight
+    func = train_cluster_reweight if UPDATE == "cluster" else \
+        (train_sample_reweight if UPDATE == "sample" else train_individual_reweight)
     history = func(model_conv, device, dataloaders["train"], optimizer_conv, exp_lr_scheduler, NUM_EPOCH,
                    num_clusters=NUM_CLUSTERS, num_labels=2, update_lr=UPDATE_LR)
 
@@ -212,7 +214,8 @@ for trial in range(NUM_TRIALS):
 
     # #### Saving checkpoint
     if ID >= 0:
-        PATH = "Reweighting/checkpoints/" + ("cluster_update/" if UPDATE == "cluster" else "sample_update/") + (
+        PATH = "Reweighting/checkpoints/" + ("cluster_update/" if UPDATE == "cluster" else
+                                         ("sample_update/" if UPDATE == "sample" else "individual_update/")) + (
             "w_val" if VAL_MODE else "w.o_val") + f"/Bias_{BIAS}/model_ep_{START_EPOCH + NUM_EPOCH}/Run_{ID}/trial_{trial}"
         LOSS = "CrossEntropyLoss"
 
@@ -229,11 +232,11 @@ if ID >= 0:
     train_accs = np.array(train_accs)
     test_accs = np.array(test_accs)
     fairness_accs = np.array(fairness_accs)
-    PATH = "Reweighting/checkpoints/" + ("cluster_update/" if UPDATE == "cluster" else "sample_update/") + (
+    PATH = "Reweighting/checkpoints/" + ("cluster_update/" if UPDATE == "cluster" else
+                                         ("sample_update/" if UPDATE == "sample" else "individual_update/")) + (
         "w_val" if VAL_MODE else "w.o_val") + f"/Bias_{BIAS}/model_ep_{START_EPOCH + NUM_EPOCH}/Run_{ID}/stats.txt"
 
     file = open(PATH, "w")
-    file.write(f"Training accuracy: {train_accs.mean()} += {train_accs.std()} \n")
     file.write(f"Test accuracy: {test_accs.mean()} += {test_accs.std()} \n")
     file.write(f"Fairness accuracy: \n {np.mean(fairness_accs, axis=0)} \n += \n {np.std(fairness_accs, axis=0)}")
     file.close()
