@@ -24,6 +24,9 @@ Details about how these datasets are preprocessed and prepared for training can 
 ## Clustering
 
 This folder refers to the bias detection section of the project. The goal is to detect whether the dataset is biased against certain sub-population(s). 
+* **Clustering.ipynb** : This is the main notebook of the section, it aims at clustering the dataset to expose potential bias. It uses a small convolutional network to find embeddings of every sample of the dataset, before applying PCA and using the k-means algorithm with a customized distance metric to yield a clustering of the dataset. This notebook can be run sequencially, cell by cell (see report for more details).
+* **K-means (basket_volley).ipynb** : This notebook explores the basket_volley dataset and investigates new approaches, it can be ignored.
+* **K-means (doctor_nurse).ipynb** : This notebook explores the doctor_nurse dataset, which is not talked about in this project. This notebook can be ignored.
 
 ## Logistic Regression
 
@@ -92,13 +95,13 @@ When the training procedure ends, the checkpoint as well as some evaluation stat
   
 * The other scripts of the folder are briefly mentioned below:
  
- | File | Description
+| File | Description
 | :--- | :----------
 | adversial\_model.py | Baseline model, see: [1].
 | calibrated\_eq\_odds\_postprocessing.py | Baseline model: see [2]
 | disparate\_impact\_remover.py | Baseline model, see [3]
 | reject\_option\_classifier.py | Baseline mode, see [4]
-| evaluate.py | Evaluates a trained model based on multiple fairness metrics
+| evaluate.py | Evaluates a trained model against multiple fairness metrics
 | fairness\_metrics.py | Contains every fairness definition mentioned in the report and more
 | load\_dataset.py | Preprocesses the datastet and prepares it for training
 | logistic\_regression\_model.py | Contains the model as well as methods to train and evaluate it
@@ -139,7 +142,7 @@ When the training procedure ends, the checkpoint as well as some evaluation stat
   
 * **data_reweghting.py** : This scripts trains and evaluates our algorithms on the image dataset. 
   
-  ```
+```
 python3 data_reweighting.py -w_protected={W_PROTECTED} -bias={BIAS} -val_mode={VAL_MODE} -start_epoch={START_EPOCH} -num_epoch={NUM_EPOCH}, -num_clusters={NUM_CLUSTERS}, -id={ID}, -num_trials={NUM_TRIALS} -update={UPDATE}, -update_lr={UPDATE_LR} -clusters={CLUSTERS}"
 ```
 
@@ -161,5 +164,14 @@ start\_epoch=\<start_epoch\> : The epoch to start from if the model has already 
 
 
 When the training procedure ends, the checkpoint as well as some evaluation statistics will be saved at the path: 
-  `./"Reweighting/checkpoints/" + ("cluster_update/" if UPDATE == "cluster" else ("sample_update/" if UPDATE == "sample" else "individual_update/")) 
-  + ("w_val" if VAL_MODE else "w.o_val") + f"/Bias_{BIAS}/model_ep_{START_EPOCH + NUM_EPOCH}/Run_{ID}/`.
+  `./"Reweighting/checkpoints/" + ("cluster_update/" if UPDATE == "cluster" else ("sample_update/" if UPDATE == "sample" else "individual_update/"))  + ("w_val" if VAL_MODE else "w.o_val") + f"/Bias_{BIAS}/model_ep_{START_EPOCH + NUM_EPOCH}/Run_{ID}/`.
+   
+* The other scripts of the folder are briefly mentioned below:
+ 
+| File | Description
+| :--- | :----------
+| Case_3.py | Trains the model on a randomized reweighted dataset, this class is depreciated.
+| fairness\_metrics.py | Contains every fairness definition mentioned in the report and more
+| my\ImageFolder.py | Preprocesses the datastet, splits it in terms of clusters and prepares it for training
+| model.py | Contains the Resnet as well as methods to train and evaluate it
+| Result.py | Evaluates a trained model against multiple fairness metrics
