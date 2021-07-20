@@ -1,7 +1,0 @@
-Training accuracy: 0.938382541720154 += 0.0 
-Test accuracy: Test acc:  0.8312958435207825
-Fairness accuracy: 
-[[0.786, 0.778], [0.835, 0.937]]
- += 
- [[0. 0.]
- [0. 0.]]
