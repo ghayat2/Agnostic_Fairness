@@ -4,7 +4,7 @@
 """ResNet Vanilla feature extractor
 
 This script aims to train a classifier based on representations extracted from a pretrained resNet. The goal is to assess
-the performance of the classifier when no reweighting is done on the dataset.
+the performance of the classifier when no reweighting is done or when minority is reweighted in the dataset.
 """
 
 from __future__ import print_function, division

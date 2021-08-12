@@ -1,3 +1,7 @@
+"""
+This script evaluates a trained model against multiple fairness metrics
+"""
+
 from __future__ import print_function, division
 
 import getopt

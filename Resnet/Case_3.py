@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+"""DEPRECIATED CLASS"""
+
 """Resnet Random weight allocation
 
 This script implements case 3 of the document: https://mit.zoom.us/j/98140955616

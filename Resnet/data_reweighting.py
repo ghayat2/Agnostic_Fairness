@@ -5,6 +5,10 @@ from model import *
 from my_ImageFolder import *
 from fairness_metrics import *
 
+"""
+This script runs the image dataset (sports or doctor-nurse) against our models defined in the model.py class (look at 
+report for more details). This script can be run from the command line with the parameters explained below
+"""
 plt.ion()  # interactive mode
 
 path_dr_f_d = '../Datasets/doctor_nurse/dr/fem_dr_dark_56/'
@@ -77,7 +81,7 @@ for opt, arg in opts:
             "--update=<update> \n"
             "cluster: each cluster has a weight \n"
             "sample: each sample has a weight \n"
-            "individual: each sample is treated as an independent individual\n"
+            "individual: each sample is treated as an independent individual (this option is not mentioned in report)\n"
             "--num_epoch=<num_epoch> \n--id=<id> \n--num_trials=<num_trials> \n"
             "--update_lr=<update_lr> \n"
             "--clusters=<clusters>"
