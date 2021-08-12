@@ -1,0 +1,16 @@
+--------------Cluster 0--------- 
+ n. samples: 302
+ n. of bask: 0 (0.0%)
+ n. of volley: 302 (100.0%)
+ n. of red: 29 (9.6%)
+ n. of yellow: 273 (90.4%)
+ n. of males: 146 (48.3%)
+ n. of females: 156 (51.7%)
+--------------Cluster 1--------- 
+ n. samples: 106
+ n. of bask: 0 (0.0%)
+ n. of volley: 106 (100.0%)
+ n. of red: 93 (87.7%)
+ n. of yellow: 13 (12.3%)
+ n. of males: 53 (50.0%)
+ n. of females: 53 (50.0%)
