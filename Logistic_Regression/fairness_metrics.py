@@ -7,6 +7,14 @@ from scipy.stats import norm
 
 
 def binary_confusion_matrix(true_labels, pred_labels, protect, protect_group):
+    """
+    Confusion matrix between labels and predictions
+    :param true_labels:  labels
+    :param pred_labels: predictions
+    :param protect: protected attribute
+    :param protect_group: the protected value
+    :return: confusion matrix
+    """
     indices = np.where(protect == protect_group)
     group_pred_labels = pred_labels[indices]
     group_true_labels = true_labels[indices]
@@ -16,6 +24,16 @@ def binary_confusion_matrix(true_labels, pred_labels, protect, protect_group):
 
 def generalized_binary_confusion_matrix(true_labels, pred_scores, protect, protect_group, unfavorable_label=0,
                                         favorable_label=1):
+    """
+    Confusion matrix with soft predictions (logits are summed up to yield cell value, instead of hard classification)
+    :param true_labels: labels
+    :param pred_scores:  predictions
+    :param protect: protected attribute
+    :param protect_group: protected value
+    :param unfavorable_label:unfavorable label
+    :param favorable_label: favorable label
+    :return:
+    """
     indices = np.where(protect == protect_group)
     group_pred_scores = pred_scores[indices]
     group_true_labels = true_labels[indices]
@@ -144,6 +162,20 @@ def equalizing_odds(preds, labels, protect):
 
 def scatter_plots(device, predictor_maj, predictor_min, predictor_comb, test_maj_loader,
                   test_min_loader, test_comb_loader):
+    """
+    Constructs a scatter plot that compares the model's predictions with the base rate models. It points out which
+    data samples were misclassified by the model and verifies that these were hard to classify by the base models as
+    well. In addition, the plot reflects the level of bias in the predictions by analying the symmetry of the plot.
+    :param device: The pytorch device
+    :param predictor_maj: the base rate model for the majority data
+    :param predictor_min: the base rate model for the minority data
+    :param predictor_comb: the model to be evaluated
+    :param test_maj_loader: the majority test dataloader
+    :param test_min_loader: the minority test dataloader
+    :param test_comb_loader: the test dataloader
+    :return: a scatter plot illustrating the above.
+    """
+
     maj_pred, _, _, maj_probs = test(predictor_maj, device, test_maj_loader)
     min_pred, _, _, min_probs = test(predictor_min, device, test_min_loader)
     maj_pred, maj_probs = maj_pred.numpy().reshape((-1)), maj_probs.numpy().reshape((-1))

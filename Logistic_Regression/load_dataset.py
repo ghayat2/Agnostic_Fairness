@@ -21,6 +21,11 @@ def get_data(filepath):
 
 
 def minmax_scale(df):
+    """
+    Scales the dataset
+    :param df: dataframe
+    :return: the scaled dataframe
+    """
     minmax_scale = preprocessing.MinMaxScaler().fit(df.values)
     scaled_df = minmax_scale.transform(df.values)
     scaled_df = pd.DataFrame(scaled_df, index=df.index, columns=df.columns)
@@ -28,17 +33,33 @@ def minmax_scale(df):
 
 
 def top_k_proxy_features(df, label, protect, k):
+    """
+    Finds the most correlated features with the label
+    :param df: data
+    :param label: label
+    :param protect: protected attribute
+    :param k: number of top correlated features to find
+    :return: top k correlated features
+    """
     correlations = []
     for feature in df:
         if feature not in [protect, label]:
             correlation_score = normalized_mutual_info_score(df[feature], df[protect], average_method='arithmetic')
             correlations.append((feature, correlation_score))
     top_k = sorted(correlations, key=lambda kv: kv[1], reverse=True)[:k]
-    print(top_k[0], "is the most correlacted attribute")
+
     return top_k
 
 
 def df_without_k_proxies(df, label, protect, k):
+    """
+    Removes the most label-correlated features from the data
+    :param df: data
+    :param label: label
+    :param protect: protected attribute
+    :param k: number of features to remove
+    :return: modified dataset
+    """
     top_k = top_k_proxy_features(df, protect, label, k)
     top_k_features = set([feature for feature, _ in top_k])
     remaining_features = set(df.columns) - top_k_features
@@ -46,6 +67,13 @@ def df_without_k_proxies(df, label, protect, k):
 
 
 def balance_df_label(df, label, downsample=True):
+    """
+    balances out the data w.r.t the label, for an arbitrary number of labels
+    :param df: data
+    :param label: label attribute
+    :param downsample: whether to dowsample or upsample the majority label value
+    :return: balannced dataset
+    """
     min_label = df.groupby(label).size().min()
     max_label = df.groupby(label).size().max()
     func = lambda sublabel: resample(sublabel, replace=False,
@@ -55,6 +83,15 @@ def balance_df_label(df, label, downsample=True):
 
 
 def balance_df(df, label_col, protected_cols, label_only=False, downsample=True):
+    """
+    balances out the data in terms of sensitive attributes and label
+    :param df: data
+    :param label_col: label attribute
+    :param protected_cols: protected attribute names
+    :param label_only: whether to balance the data in terms of label values as well
+    :param downsample: whether to upsample or downsample
+    :return: balanced data
+    """
     if label_only:
         df_balanced_label = balance_df_label(df, label_col, downsample=downsample)
     else:
@@ -121,6 +158,12 @@ def balance_df_label_(df, label, downsample=True):
 
 
 def split_train_test(df, train=0.75):
+    """
+    Splits the data into train/test set
+    :param df: data
+    :param train: proportion of training data
+    :return: training data and test data
+    """
     np.random.seed(seed=1)
     shuffled = np.random.permutation(df.index)
     n_train = int(len(shuffled) * train)
@@ -129,6 +172,14 @@ def split_train_test(df, train=0.75):
 
 
 def statistics(df, label_col, protected_cols, verbose=0):
+    """
+    Returns various statistics about the data
+    :param df:
+    :param label_col:
+    :param protected_cols:
+    :param verbose: whether to print them out
+    :return: statistics
+    """
     stats = {}
     for label in df[label_col].unique():
         stats[label] = df[df[label_col] == label].groupby(protected_cols).apply(
@@ -161,7 +212,9 @@ def statistics_(df, label_col, protected_cols, verbose=0):
 
 
 class Dataset(data.Dataset):
-    'Characterizes a dataset for PyTorch'
+    """
+    Constructs a dataset using the previous method. Note that the class supports subgroup fairness (>1 sensitive att.)
+    """
 
     def __init__(self, arg_1, arg_2, arg_3):
         if isinstance(arg_1, pd.DataFrame):
@@ -200,6 +253,20 @@ class Dataset(data.Dataset):
 
 def train_test_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_remove=0,
                        balanced=None, reweighting=0, init=0, split=0.75):
+    """
+    Loads and preprocesses the data to prepapre it for the training stage. The following arguments specify how the
+    preprocessing should be done.
+    :param filepath: data location
+    :param label:
+    :param protect:
+    :param is_scaled: whether to scacle the data
+    :param num_proxy_to_remove:
+    :param balanced: whether to balance out the data
+    :param reweighting: will return custom weight for minority group if set to 1
+    :param init:
+    :param split: split proportion
+    :return: training, test, and training weights of samples
+    """
     df = get_data(filepath)
 
     # Scaling the dataset
@@ -234,6 +301,23 @@ def train_test_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_re
 
 def load_split_dataset(filepath, label, protect, is_scaled=True, num_proxy_to_remove=0, balanced=0, keep=1, verbose=0,
                        filters=None):
+    """
+    Similar to the previous method, with the option of filtering out the easiest/hardest samples to classify based on
+    the base models
+    :param filepath:
+    :param label:
+    :param protect:
+    :param is_scaled:
+    :param num_proxy_to_remove:
+    :param balanced:
+    :param keep: The proportion of the keep when filtering the majority and minority sets (must be ]0,1])"
+    :param verbose: print debug messages
+    :param filters: [filter_maj, filter_min], where filter_x:
+            "1: filters the group to improve model predictions"
+            "0: does not filter the group"
+            "-1: filters the group to worsen model predictions"
+    :return: datasets of maj, min, and overall for both training and test set.
+    """
     df = get_data(filepath)
 
     # Scaling the dataset
@@ -291,6 +375,18 @@ def filter_outliers(df, n_estimators=100, proportion=0.1):
 
 
 def filter(df, label, protect, improve, epochs=40, lr=0.001, verbose=1, keep=0.9):
+    """
+    Filters out the easiest/hardest samples depending on the improve parameter based on the base model
+    :param df: data
+    :param label: label column
+    :param protect: protected attribute
+    :param improve: whether to improve or deteriorate the data
+    :param epochs: num epochs
+    :param lr: learning rate
+    :param verbose: prints debug messages
+    :param keep: the proportion of samples to filter out from data
+    :return: the modified data
+    """
     device = torch.device("cpu")
     dataset = Dataset(df, label, [protect])
     train_loader = torch.utils.data.DataLoader(dataset=dataset, batch_size=1000, shuffle=False)
