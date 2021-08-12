@@ -23,10 +23,11 @@ Details about how these datasets are preprocessed and prepared for training can 
 ## Clustering
 
 This folder refers to the bias detection section of the project. The goal is to detect whether the dataset is biased against certain sub-population(s). 
-* **Clustering.ipynb** : This is the main notebook of the section, it aims at clustering the dataset to expose potential bias. It uses a small convolutional network to find embeddings of every sample of the dataset, before applying PCA and using the k-means algorithm with a customized distance metric to yield a clustering of the dataset. This notebook can be ran sequencially, cell by cell (see report for more details).
+This folder refers to the bias detection section of the project. The goal is to detect whether the dataset is biased against certain sub-population(s). 
+* **unsupervised_clustering.ipynb** : This notebook aims at clustering the dataset to expose potential bias. It uses a small convolutional network to find embeddings of every sample of the dataset, before applying PCA and using the k-means algorithm with a customized distance metric to yield a clustering of the dataset. This notebook can be run sequencially, cell by cell.  (see report for more details).
+* **semi-supervised_clustering.ipynb** : This notebook aims at clustering the dataset using a classifier that is trained on a small portion of the data. It uses a Residual Network as a classifier. After being trained, it is used to predict the sensitive attribute of the trasining data and allocates each sample to its corresponding cluster based on its prediction and the sample's class. This notebook can be run sequencially, cell by cell.  (see report for more details).
 * **K-means (basket_volley).ipynb** : This notebook explores the basket_volley dataset and investigates new approaches, it can be ignored.
 * **K-means (doctor_nurse).ipynb** : This notebook explores the doctor_nurse dataset, which is not talked about in this project. This notebook can be ignored.
-
 ## Logistic Regression
 
 This folder deals with the Adult tabular dataset described above. It contains scripts that train and measure the performance of baselines as well as our reweigthing algorithms (see report for description). The main scripts are listed here, as well as commands to run them:
