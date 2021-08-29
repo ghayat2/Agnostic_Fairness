@@ -1,4 +1,4 @@
-# Upon Detection and Mitigation of Dataset Bias
+# Towards Detection and Mitigation of Dataset Bias through Adaptive Reweighting
 
 
 This project focuses on detecting and mitigating bias in tabular and image datasets. The libraries that are required to run the code include: matplotlib, pytorch, numpy, pandas, visdom (only for tracking training progress) and scikit-learn. These can be installed through pip3: 
@@ -7,7 +7,7 @@ This project focuses on detecting and mitigating bias in tabular and image datas
 pip3 install <library_name>
 ```
 
-This document will serve as a guide to understand most important scripts.
+This document will serve as a guide to understand the most important scripts.
 
 ## Authors
 * Gabriel Hayat
@@ -15,7 +15,7 @@ This document will serve as a guide to understand most important scripts.
 ## Datasets
 
 In the `Datasets` folder, two datasets are relevant for this project:
-* Adult dataset: This dataset is tabular. It involves using personal details to predict whether an individual's yearly income exceeds $50,000 per year. The features used for predictiona include the age, the gender, the education level, the race etc ... The dataset contains 48'842 samples. When handling this dataset, we are going to set *gender* as the sensitive attribute and will extend this set with the *race* attribute when looking at subgroup fairness.
+* Adult dataset: This dataset is tabular. It involves using personal details to predict whether an individual's yearly income exceeds $50,000 per year. The features used for predictions include the age, the gender, the education level, the race etc ... The dataset contains 48'842 samples. When handling this dataset, we are going to set *gender* as the sensitive attribute and will extend this set with the *race* attribute when looking at subgroup fairness.
 * basket_volley: This sport dataset is an image dataset composed of 1643 samples, split into two classes, namely a *basketball* and *volleyball* class. The classes are balanced (i.e. number of samples in the two classes are similar). The images consist of in-game pictures, portraits and team pictures in their respective discipline. For the sake of exploring fairness, we manually divided the classes according to the jersey color of the player(s) represented in the images, which we use as a sensitive attribute when handling this dataset.
 
 Details about how these datasets are preprocessed and prepared for training can be found in the report.
@@ -23,9 +23,9 @@ Details about how these datasets are preprocessed and prepared for training can 
 ## Clustering
 
 This folder refers to the bias detection section of the project. The goal is to detect whether the dataset is biased against certain sub-population(s). 
-This folder refers to the bias detection section of the project. The goal is to detect whether the dataset is biased against certain sub-population(s). 
+
 * **unsupervised_clustering.ipynb** : This notebook aims at clustering the dataset to expose potential bias. It uses a small convolutional network to find embeddings of every sample of the dataset, before applying PCA and using the k-means algorithm with a customized distance metric to yield a clustering of the dataset. This notebook can be run sequencially, cell by cell.  (see report for more details).
-* **semi-supervised_clustering.ipynb** : This notebook aims at clustering the dataset using a classifier that is trained on a small portion of the data. It uses a Residual Network as a classifier. After being trained, it is used to predict the sensitive attribute of the trasining data and allocates each sample to its corresponding cluster based on its prediction and the sample's class. This notebook can be run sequencially, cell by cell.  (see report for more details).
+* **semi-supervised_clustering.ipynb** : This notebook aims at clustering the dataset using a classifier that is trained on a small portion of the data. It uses a Residual Network as a classifier. After being trained, it is used to predict the sensitive attribute of the training data and allocates each sample to its corresponding cluster based on its prediction and the sample's class. This notebook can be run sequencially, cell by cell.  (see report for more details).
 * **K-means (basket_volley).ipynb** : This notebook explores the basket_volley dataset and investigates new approaches, it can be ignored.
 * **K-means (doctor_nurse).ipynb** : This notebook explores the doctor_nurse dataset, which is not talked about in this project. This notebook can be ignored.
 ## Logistic Regression
@@ -57,7 +57,7 @@ where:
 1. num\_epoch=\<num_epoch\>
 1. id=\<id\>: the id of the trained model
 1. num_trials=\<num_trials\>: number of times to repeat the training process
-1. num_proxies= \<num_proxies\>: number of features to removed that are most correlated with the label
+1. num_proxies= \<num_proxies\>: number of features to remove that are most correlated with the label
 1. file_path=\<file_path\>: the file path of the preprocessed data
 1. verbose=\<verbose\>
 1. lr=\<lr\>: the learning rate
@@ -82,7 +82,7 @@ where
 1. num_epoch=\<num_epoch\>
 1. id=\<id\>: the id of the trained model
 1. num_trials=\<num_trials\>: number of times to repeat the training process
-1. num_proxies= \<num_proxies\>: number of features to remove that are most correlated with label
+1. num_proxies= \<num_proxies\>: number of features to remove that are most correlated with the label
 1. batch_size= \<batch_size\>: controls the batch size of the classifiers.
 1. keep=<keep>
     * The proportion to keep when filtering the majority and minority groups (must be ]0,1])
@@ -129,7 +129,7 @@ python3 Case_1+2.py -w_protected={W_PROTECTED} -bias={BIAS} -val_mode={VAL_MODE}
 
 where: 
 1. w_protected=\<w_protected\>: weight with which to reweight every sample of the minority class
-1. bias=\<bias\>: the version of the dataset to use, i.e. bias ranges from 0.5 to 0.8 and represents the ratio of `majority : minority` in each class. 
+1. bias=\<bias\>: the version of the dataset to use, i.e. bias ranges from 0.5 to 0.8 and represents the ratio of `majority : minority` of each class. 
 1. start\_epoch=\<start_epoch\> : the epoch to start from if the model has already been trained
 1. num\_epoch=\<num_epoch\>
 1. val\_mode=\<val\_mode>: whether to train the model in validation mode
@@ -149,9 +149,9 @@ python3 data_reweighting.py -w_protected={W_PROTECTED} -bias={BIAS} -val_mode={V
 
 where: 
 1. w_protected=\<w_protected\>: weight with which to reweight every sample of the minority class
-1. bias=\<bias\>: the version of the dataset to use, i.e. bias ranges from 0.5 to 0.8 and represents the ratio of `majority : minority` in each class. 
+1. bias=\<bias\>: the version of the dataset to use, i.e. bias ranges from 0.5 to 0.8 and represents the ratio of `majority : minority` of each class
 1. label_column=\<label_column\>: the name of the target column
-start\_epoch=\<start_epoch\> : the epoch to start from if the model has already been trained
+1. start\_epoch=\<start_epoch\> : the epoch to start from if the model has already been trained
 1. num\_epoch=\<num_epoch\>
 1. val\_mode=\<val\_mode>: whether to train the model in validation mode
 1. id=\<id\>: the id of the trained model
@@ -159,9 +159,9 @@ start\_epoch=\<start_epoch\> : the epoch to start from if the model has already 
 1. update=\<update\>: this argument decides which algorithm to use (see report for more detailed explainations):
       * cluster: each cluster has a weight 
       * sample: each sample has a weight
-      * individual: each sample is treated as an independent individual
+      * individual: each sample is treated as an independent individuals
 1. update\_lr=\<update\_lr\>: the weight update learning rate of the algorithm
-1. clusters=\<clusters\>: this parameter should be set when using customized clusters: it should be the name of a python dictionary mapping each sample to its cluster
+1. clusters=\<clusters\>: this parameter should be set when using customized clusters. It should be the name of a python dictionary mapping each sample to its cluster
 
 
 When the training procedure ends, the checkpoint as well as some evaluation statistics will be saved at the path: 
