@@ -7,7 +7,7 @@ This project focuses on detecting and mitigating bias in tabular and image datas
 pip3 install <library_name>
 ```
 
-This document will serve as a guide to understand the most important scripts.
+This document will serve as a guide to understand the most important scripts. Please download `report.pdf` for detailed explanations.
 
 ## Authors
 * Gabriel Hayat
